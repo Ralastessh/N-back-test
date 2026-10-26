@@ -1,0 +1,172 @@
+[
+  {
+    "file": "B.wav",
+    "text": "B",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.6048541666666667,
+    "duration_s": 0.5,
+    "compressed": true,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "F.wav",
+    "text": "F",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.625,
+    "duration_s": 0.5,
+    "compressed": true,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "H.wav",
+    "text": "H",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.6912916666666666,
+    "duration_s": 0.5,
+    "compressed": true,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "J.wav",
+    "text": "J",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.6530416666666666,
+    "duration_s": 0.5,
+    "compressed": true,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "M.wav",
+    "text": "M",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.6079583333333334,
+    "duration_s": 0.5,
+    "compressed": true,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "Q.wav",
+    "text": "Q",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.6096875,
+    "duration_s": 0.5,
+    "compressed": true,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "R.wav",
+    "text": "R",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.6074583333333333,
+    "duration_s": 0.5,
+    "compressed": true,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "W.wav",
+    "text": "W",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.7626041666666666,
+    "duration_s": 0.5,
+    "compressed": true,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/1.wav",
+    "text": "one",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.31485416666666666,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/2.wav",
+    "text": "two",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.27045833333333336,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/3.wav",
+    "text": "three",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.31847916666666665,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/4.wav",
+    "text": "four",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.30302083333333335,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/5.wav",
+    "text": "five",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.350875,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/6.wav",
+    "text": "six",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.39839583333333334,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/7.wav",
+    "text": "seven",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.3640625,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/8.wav",
+    "text": "eight",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.26364583333333336,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  },
+  {
+    "file": "digits/9.wav",
+    "text": "nine",
+    "voice": "Samantha",
+    "rate": 240,
+    "trimmed_source_s": 0.34941666666666665,
+    "duration_s": 0.95,
+    "compressed": false,
+    "source": "macOS say; reproduction assumption"
+  }
+]

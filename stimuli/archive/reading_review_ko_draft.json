@@ -1,0 +1,6 @@
+{
+  "forms_difficulty_reviewed": false,
+  "reviewer": "",
+  "approved_csv_sha256": "",
+  "note": "미승인 한국어 초안. 개별 reviewed=yes 및 A/B 대응 난이도 검토 후 현재 CSV의 SHA256을 기록하세요. 경험적 동등성 검증은 별도 필요."
+}

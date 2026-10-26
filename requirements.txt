@@ -1,0 +1,6 @@
+# macOS에서는 PsychoPy Standalone Coder를 권장합니다.
+# Standalone 사용자는 이 파일을 별도로 설치하지 않아도 됩니다.
+# 아래는 별도 Python 환경에서의 실험 엔진 의존성입니다.
+psychopy==2026.2.4
+psychtoolbox>=3.0.19
+# 핵심 테스트는 Python 표준 라이브러리 unittest만 사용합니다.
