@@ -1,13 +1,14 @@
 """참가자의 시행별 자극·반응만 세션당 CSV 하나에 저장한다."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import csv
 import json
 import uuid
 
 # 시스템·장치·백엔드 설정은 포함하지 않는다.
-COMMON = ["session_id", "participant", "task", "phase", "stage", "session_status", "recorded_utc", "event_type"]
+KST = timezone(timedelta(hours=9), "KST")
+COMMON = ["session_id", "participant", "task", "phase", "stage", "session_status", "recorded_kst", "event_type"]
 NBACK_COLUMNS = [
     "block", "n", "trial_number", "warmup", "scored", "complete",
     "visual_position", "visual_x", "visual_y", "auditory_letter",
@@ -30,12 +31,15 @@ class DataLogger:
     def __init__(self, directory, participant, task, phase, metadata):
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
-        self.stem = f"{task}_{datetime.now(timezone.utc):%Y%m%dT%H%M%S}_{uuid.uuid4().hex[:8]}"
+        self.stem = f"{task}_{datetime.now(KST):%Y-%m-%d_%H-%M-%S}_{uuid.uuid4().hex[:8]}"
         self.path = directory / f"{self.stem}_responses.csv"
         self.phase = phase
         self.task = task
         self.common = dict(session_id=self.stem, participant=participant, task=task, phase=phase)
-        self.names = COMMON + (NBACK_COLUMNS if task == "dual_nback" else SPAN_COLUMNS)
+        self.names = COMMON + (
+            NBACK_COLUMNS if task == "dual_nback" else
+            SPAN_COLUMNS + (["material_status"] if task == "reading_span" else [])
+        )
         self.file = self.path.open("x+", encoding="utf-8-sig", newline="")
         self.rows = []
         self.pending = {}
@@ -59,7 +63,8 @@ class DataLogger:
 
     def _append(self, event_type, fields):
         row = dict(self.common, session_status=self.status,
-                   recorded_utc=datetime.now(timezone.utc).isoformat(), event_type=event_type, **fields)
+                   recorded_kst=datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S"),
+                   event_type=event_type, **fields)
         row = {key: (json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list, tuple)) else value)
                for key, value in row.items() if key in self.names}
         self.rows.append(row)

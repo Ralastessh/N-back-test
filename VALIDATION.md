@@ -1,5 +1,44 @@
 # 검증 기록 — 2026-10-27
 
+## 최신 변경: 한국시간 기록 v15
+
+- 새 CSV는 `recorded_utc` 대신 `recorded_kst`를 `YYYY-MM-DD HH:MM:SS` 24시간제로 저장합니다. `session_id`와 파일명도 KST `YYYY-MM-DD_HH-MM-SS`를 사용하며 충돌 방지 고유번호는 유지합니다. 기존 UTC CSV는 수정하지 않습니다.
+- 이전 완료 Pretest를 찾는 코드는 새 KST와 기존 UTC 기록을 모두 실제 시각으로 비교합니다. 단위 테스트 50개, compileall, diff 공백 검사 통과. 생성된 CSV의 시각·세션 ID 형식과 현재 KST 시각의 일치를 확인했습니다.
+
+## 최신 변경: 사용자 선택 단계 전환 v14
+
+- 선택한 Span Pretest 뒤 Dual N-back Training, Training 뒤 같은 Span Posttest를 제안합니다. SPACE로 계속하고 N으로 멈춥니다. Training을 단독 시작한 경우 같은 이메일의 가장 최근 완료 Pretest를 찾고, 없으면 D/R 키로 Posttest 검사를 고릅니다. 단계마다 독립 CSV·session ID가 만들어지고 참가자 이메일은 유지됩니다. 중단·오류가 난 과제 뒤에는 다음 단계를 제안하지 않습니다.
+- 단위 테스트 50개 통과. 세 단계 연속 실행, 단독 Training 뒤 Posttest 선택, 기존 CSV에서 완료된 Pretest 복원, N/SPACE 키 처리를 검사했습니다. 설치된 PsychoPy 2026.2.4에서 전환 제안 화면을 실제 렌더링하고 N 키 종료 경로를 확인했습니다. 자동화된 과제 내부 실행과 실제 사람의 전체 연속 세션은 별도 검증 대상입니다.
+
+## 최신 변경: 시작 과제·단계 선택 재시도 v13
+
+- `Digit Span/Reading Span + Training` 또는 `Dual N-back + Pretest/Posttest`를 선택하면 예외로 종료하지 않고 경고창을 띄운 뒤 선택 창을 다시 엽니다. 이전 선택을 유지한 채 드롭다운의 전체 선택지가 다시 표시됩니다. 이메일 형식 오류도 같은 선택 창으로 돌아갑니다. 유효한 선택을 마친 뒤에만 DataLogger와 실험 창을 만듭니다.
+- 단위 테스트 45개 통과. 잘못된 조합 후 `Digit Span + Pretest`로 고쳐 실행되는 흐름, 두 번째 드롭다운 선택지, 최종 CSV 하나 생성, Dual N-back의 Training 조건을 확인했습니다. 실제 사람의 GUI 클릭은 자동화하지 않았습니다.
+
+## 최신 변경: 사용자 제공 Reading Span 문장 예시
+
+- Form A의 `A09/A35/A25/A03/A07/A37`, Form B의 대응 `B09/B35/B25/B03/B07/B37`에 제공된 문장과 마지막 회상 단어를 순서대로 입력했습니다. 모두 기존 True 문항이어서 Form별 21 True / 21 False와 2~5문장 세트 구조를 유지합니다. `word_count`를 다시 계산하고 `reviewed=no`를 유지했습니다. 각 Form의 나머지 36문장과 연습 6문장은 기존 초안입니다.
+- 문항 구조 검사와 단위 테스트 43개가 통과했습니다. 수정 후 CSV SHA256은 `900c93f18a47cb9288cae295974cce10e0f7a926f15a238b3da807db1d5e2f21`입니다. 제공된 문장의 길이·단어 빈도·회상 난이도 및 A/B 동등성은 아직 사전 검토가 필요합니다.
+- 설치된 PsychoPy 2026.2.4에서 자동 키 응답과 모의 단어 회상으로 Pretest(Form A)와 Posttest(Form B)를 각각 끝까지 실행했습니다. 두 실행 모두 수정된 문항을 포함한 본검사 42문장과 총 63개의 행동 행을 저장했고, 모든 행에 `material_status=draft`가 기록됐습니다. 사람의 실제 입력·문항 이해도는 확인하지 않았습니다.
+
+## 최신 변경: Reading Span 초안 개발 실행 v12
+
+- 보고된 중단 지점은 `utils/span_protocol.py:124`의 `Unreviewed item: A18`입니다. 제공된 CSV 90문항의 `reviewed=no`와 승인 파일의 빈 reviewer/hash로 인해 기존 정식 실행 차단이 작동한 것이었습니다.
+- `READING_SPAN.allow_draft_materials=True`인 개발 상태에서는 문항의 형식·세트 구조는 검사하면서 승인 문턱만 건너뛰어 과제를 실행합니다. 화면에 `DRAFT MATERIALS`를 알리고 반응 CSV에 `material_status=draft`를 남깁니다. `False`로 바꾸면 개별 문항 승인과 A/B 검토 해시가 다시 필요합니다.
+- 단위 테스트 43개와 문항 초안 구조 검사, compileall, diff 공백 검사가 통과했습니다. 설치된 PsychoPy 2026.2.4로 화면을 실제 그리며 자동 응답 Pretest를 끝까지 실행했고, 임시 단일 CSV의 63개 반응 행이 모두 `material_status=draft`, `session_status=completed`였습니다. 이 자동 검사는 실제 사람의 문장 판단·회상 또는 문항 난이도를 검증하지 않습니다.
+
+## 최신 변경: Forward 고정과 시작 대기 문구 v11
+
+- 참가자용 시작 입력창의 Forward/Backward 선택란과 CLI `--mode`를 제거했습니다. Digit Span을 시작하면 `forward`가 과제 호출과 기록에 전달됩니다. 내부 Backward 함수는 기존 핵심 알고리즘 검증을 위해 보존했습니다.
+- PsychoPy 창 생성 중 주사율 측정 화면의 기본 `Attempting to measure frame rate...` 문구를 `Waiting...`으로 바꿨습니다. 주사율 측정 자체는 유지합니다.
+
+## 최신 변경: 무응답 피드백 숨김 v10
+
+- 이전 요청의 시작 창 `fullscreen` 체크박스 제거와 macOS 기본 전체화면 버튼 활성화도 현재 작업본에 반영했습니다. Cocoa 창의 크기 조절·전체화면 스타일을 켜고 Retina framebuffer/viewport를 크기 변경에 맞춰 갱신합니다.
+- 시행 중에는 실제 A/L 키 입력의 결과만 표시합니다. 키를 누르지 않은 감각은 시행이 끝난 뒤에도 `Correct` / `Incorrect`를 화면에 표시하지 않습니다. RT=2.99초의 유효한 입력도 해당 시행의 hit로 채점합니다. 다만 바로 다음 화면 갱신이 새 시행 시작과 겹치면 그 입력의 피드백은 화면에 나타나지 않을 수 있어도, 반응·RT·정오답 기록에는 반영됩니다.
+- 무응답은 3초 응답 기한 이후 `miss` 또는 `correct_rejection`으로 확정합니다. 블록 오류·정답 수·정확도·다음 N, CSV의 시행별 `outcome`·`correct`·블록 통계에는 그대로 반영합니다. 마지막 시행 뒤의 무응답 표시 대기 시간도 제거했습니다.
+- 단위 테스트 41개, compileall, `git diff --check` 통과. PsychoPy 2026.2.4에서 단축 ISI·자동 입력 1블록을 완료했습니다(`data/smoke/dual_nback_20261027T060811_9c6fbe39_responses.csv`). 청각 무응답 20개 중 target miss 6개, non-target correct rejection 14개가 저장됐고, 블록 청각 오류 6개·다음 N=1과 일치했습니다. 사람 입력과 원래 2,500ms ISI를 검증한 결과는 아닙니다.
+
 ## 최신 변경: 무응답 표시와 블록별 N 재확인 v9
 
 - 시각·청각 각 감각에서 응답하지 않은 시행을 3초 기한 뒤 채점해, 다음 시행 첫 0.75초에 하단 박스에 `Correct` 또는 `Incorrect`로 표시합니다. 박스 제목은 항상 `Visual` / `Auditory`로 유지합니다. 현재 시행의 키 반응은 같은 박스에서 우선 표시됩니다. 마지막 시행의 무응답은 블록 요약 직전 0.75초에 표시합니다. 시행별 사각형·음성 간격을 늘리지 않습니다.

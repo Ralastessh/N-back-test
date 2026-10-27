@@ -1,9 +1,10 @@
 """참가자 행동 CSV 하나에서 원반응·재채점 정보가 보존되는지 검증한다."""
 import csv
+from datetime import datetime, timezone
 import tempfile
 import unittest
 from pathlib import Path
-from utils.data_logger import DataLogger
+from utils.data_logger import DataLogger, KST
 
 
 def read_rows(path):
@@ -23,6 +24,29 @@ def trial(index=0, complete=True):
 
 
 class BehaviorCSVTests(unittest.TestCase):
+    def test_scored_omission_is_saved_and_counted_in_block_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log = DataLogger(directory, "P001", "dual_nback", "training", {})
+            row = trial()
+            row.update(responses=[], outcomes=dict(
+                visual=dict(rt=None, correct=False, outcome="miss"),
+                auditory=dict(rt=None, correct=True, outcome="correct_rejection")))
+            log.write("trial", **row)
+            log.write("block_summary", block=1, next_n=2, statistics=dict(
+                visual=dict(total=1, correct=0, incorrect=1, accuracy=0),
+                auditory=dict(total=1, correct=1, incorrect=0, accuracy=1)))
+            log.write("session_end", status="completed")
+            log.close()
+            saved = read_rows(log.path)[0]
+            self.assertEqual(saved["visual_outcome"], "miss")
+            self.assertEqual(saved["auditory_outcome"], "correct_rejection")
+            self.assertEqual(saved["visual_correct"], "False")
+            self.assertEqual(saved["auditory_correct"], "True")
+            self.assertEqual(saved["visual_rt_s"], "")
+            self.assertEqual(saved["auditory_rt_s"], "")
+            self.assertEqual(saved["block_visual_incorrect"], "1")
+            self.assertEqual(saved["block_auditory_correct"], "1")
+
     def test_one_csv_retains_both_keys_repeat_rt_stimuli_and_block_accuracy(self):
         with tempfile.TemporaryDirectory() as directory:
             log = DataLogger(directory, "P001", "dual_nback", "training", dict(system_secret="hidden"))
@@ -37,6 +61,14 @@ class BehaviorCSVTests(unittest.TestCase):
             self.assertEqual(list(Path(directory).iterdir()), [log.path])
             self.assertEqual(log.path.suffix, ".csv")
             row = read_rows(log.path)[0]
+            recorded = datetime.strptime(row["recorded_kst"], "%Y-%m-%d %H:%M:%S")
+            recorded = recorded.replace(tzinfo=KST)
+            self.assertLess(abs((datetime.now(timezone.utc) -
+                                 recorded.astimezone(timezone.utc)).total_seconds()), 10)
+            self.assertRegex(row["session_id"],
+                             r"^dual_nback_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_[0-9a-f]{8}$")
+            self.assertEqual(log.path.name, row["session_id"] + "_responses.csv")
+            self.assertNotIn("recorded_utc", row)
             self.assertEqual(row["auditory_letter"], "B")
             self.assertEqual(row["visual_position"], "6")
             self.assertEqual(row["visual_rt_s"], "0.4")
@@ -79,7 +111,7 @@ class BehaviorCSVTests(unittest.TestCase):
             log.write("sentence_start", stage="test", item_id="1", sentence="A fish can swim.")
             log.write("sentence_judgment", stage="test", item_id="1", sentence="A fish can swim.",
                       expected="True", response="y", rt=.8, correct=True)
-            log.write("reading_recall", stage="test", expected=["swim"], response=["swim"], rt=1.2, exact=True)
+            log.write("reading_recall", stage="test", material_status="draft", expected=["swim"], response=["swim"], rt=1.2, exact=True)
             log.write("sentence_start", stage="test", item_id="2", sentence="Unfinished sentence.")
             log.write("session_end", status="aborted")
             log.close()
@@ -88,6 +120,7 @@ class BehaviorCSVTests(unittest.TestCase):
             self.assertEqual(len(rows), 3)
             self.assertEqual(rows[0]["rt_s"], "0.8")
             self.assertEqual(rows[1]["expected"], '["swim"]')
+            self.assertEqual(rows[1]["material_status"], "draft")
             self.assertTrue(rows[2]["event_type"].endswith("_incomplete"))
             self.assertEqual(rows[2]["item_id"], "2")
 

@@ -46,8 +46,7 @@ try:
                   {"visual": "Correct", "auditory": "Incorrect"})
     save("feedback")
     shapes.draw(6)
-    feedback.draw("N=2  |  Block 1/20  |  Trial 2/20", {},
-                  {"visual": "Incorrect", "auditory": "Correct"})
+    feedback.draw("N=2  |  Block 1/20  |  Trial 2/20", {})
     save("feedback_no_response")
     print(f"UI previews saved: {out}")
 finally:

@@ -23,7 +23,6 @@ from utils.nback_response import (
     record_response,
     trial_outcomes,
     current_feedback,
-    completed_omissions,
     OUTCOME_LABELS,
 )
 
@@ -46,7 +45,6 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
             onset=None,
             offset=None,
             complete=False,
-            result_display_onset=None,
             audio_scheduled_ptb=None,
             audio_backend={},
         )
@@ -99,26 +97,12 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
                 win.callOnFlip(kb.clearEvents)
                 win.callOnFlip(kb.clock.reset)
             index, within = divmod(frame, trial_frames)
-            shown_records = []
             if 0 <= index < len(trials):
                 trial = trials[index]
                 shapes.draw(trial.visual if within < visible_frames else None)
                 header = trial_header(trial, index, n, block)
                 current = current_feedback(trial, records[index], key_map)
-                if NBACK_FEEDBACK["enabled"]:
-                    completed = (
-                        completed_omissions(trials[index - 1], records[index - 1], key_map)
-                        if index > 0 and within * frame_s < NBACK_FEEDBACK["omission_result_s"]
-                        else {}
-                    )
-                    visible_completed = {name: result for name, result in completed.items()
-                                         if name not in current}
-                    feedback.draw(header, current, visible_completed)
-                    shown_records.append(index)
-                    if visible_completed:
-                        shown_records.append(index - 1)
-                else:
-                    feedback.draw(header, {})
+                feedback.draw(header, current if NBACK_FEEDBACK["enabled"] else {})
             else:
                 shapes.draw()
             flip_time = win.flip()
@@ -133,32 +117,12 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
                         records[index]["onset"] = relative_flip
                 if index < len(trials) and within == visible_frames:
                     records[index]["offset"] = relative_flip
-                if NBACK_FEEDBACK["enabled"]:
-                    for shown in shown_records:
-                        for event in records[shown]["feedback_events"]:
-                            if event["display_onset"] is None:
-                                event["display_onset"] = relative_flip
-                        if shown < index and records[shown]["result_display_onset"] is None:
-                            records[shown]["result_display_onset"] = relative_flip
-        # 마지막 시행에는 다음 자극이 없으므로 블록 밖에서 무응답 피드백을 보여 준다.
+                if NBACK_FEEDBACK["enabled"] and index < len(trials):
+                    for event in records[index]["feedback_events"]:
+                        if event["display_onset"] is None:
+                            event["display_onset"] = relative_flip
+        # 마지막 시행의 기한 직전 키도 화면 표시 없이 채점에 포함한다.
         collect_keys()
-        if NBACK_FEEDBACK["enabled"] and trials:
-            last = len(trials) - 1
-            omitted = completed_omissions(trials[last], records[last], key_map)
-            if omitted:
-                from psychopy import core
-                clock = core.Clock()
-                win.recordFrameIntervals = False
-                while clock.getTime() < NBACK_FEEDBACK["omission_result_s"]:
-                    if any(key.name == "escape" for key in kb.getKeys(
-                            keyList=["escape"], waitRelease=False, clear=True)):
-                        raise KeyboardInterrupt
-                    shapes.draw()
-                    feedback.draw(f"N={n}  |  Block {block}/{NBACK['blocks']}  |  Complete",
-                                  {}, omitted)
-                    shown_at = win.flip() - base_flip
-                    if records[last]["result_display_onset"] is None:
-                        records[last]["result_display_onset"] = shown_at
     finally:
         win.recordFrameIntervals = False
         for i, record in enumerate(records):

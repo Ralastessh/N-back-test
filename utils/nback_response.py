@@ -41,20 +41,10 @@ def trial_outcomes(trial, record, key_map):
 
 
 def current_feedback(trial, record, key_map):
-    """누르지 않은 감각의 정답은 3초가 끝나기 전에 공개하지 않는다."""
+    """실제로 누른 감각만 화면에 표시한다. 무응답은 채점에만 사용한다."""
     outcomes = trial_outcomes(trial, record, key_map)
     return {
         modality: OUTCOME_LABELS[result["outcome"]]
         for modality, result in outcomes.items()
         if result["rt"] is not None
-    }
-
-
-def completed_omissions(trial, record, key_map):
-    """반응 창이 끝난 시행에서 누르지 않은 감각만 화면에 공개한다."""
-    outcomes = trial_outcomes(trial, record, key_map)
-    return {
-        modality: OUTCOME_LABELS[result["outcome"]]
-        for modality, result in outcomes.items()
-        if result["rt"] is None
     }

@@ -184,7 +184,7 @@ class ParticipantScreens:
             self.text("summary_" + modality + "_counts",
                       f"Correct {result['correct']} / {result['total']} | Incorrect {result['incorrect']}",
                       (.33, y - .052), .022, self.theme["flow_muted"], .54)
-        self.text("summary_n", f"Final N={n}" if finished else f"Current N={n}  →  Next N={next_n}", (0, -.215), .03)
+        self.text("summary_n", f"Final N={n}" if finished else f"Current N={n}  to  Next N={next_n}", (0, -.215), .03)
         self.text("summary_help", "Thank you for taking part." if finished else "Relax your hands. The next block starts automatically.",
                   (0, -.28), .025, self.theme["flow_muted"])
         self.buttons("Finish" if finished else None)

@@ -2,25 +2,25 @@
 
 학부 수준에서 코드를 설명하고 수정할 수 있도록 자극 생성, 제시, 채점, 저장을 나눈 프로젝트입니다. Dual N-back의 명시된 조건은 원문을 따르며, Span 검사는 사용자가 지정한 절차로 구현했습니다. **원본 WAIS 또는 원본 Reading Span 검사를 완전히 복제한 검사가 아닙니다.**
 
-Reading Span의 영어 문장은 **미검토 초안**입니다. A/B 각 42문장과 연습용 6문장이 있으나, 문항 검토 및 A/B 난이도 대응 검토 전에는 실행되지 않습니다. 구조를 맞춘 것이 경험적 난이도 동등성을 입증하지는 않습니다.
+Reading Span의 영어 문장은 **미검토 초안**입니다. 사용자 제공 문장 6개씩을 Form A(Pretest)와 Form B(Posttest)의 기존 True 문항 6개씩에 넣었습니다. 나머지 문항은 기존 초안이며 각 Form은 42문장을 유지합니다. 개발 실행에서는 `DRAFT MATERIALS`로 표시되고 CSV에도 `material_status=draft`로 기록됩니다. 문장 길이·단어 빈도·마지막 단어 난이도와 A/B 대응은 아직 검토되지 않았습니다.
 
 
 ## 수정 사항: 한양대학교 이메일로 참가자 구분 (2026-10-27)
 
-현재 실행 코드는 프로젝트 최상위 `main.py`, `tasks/`에 있습니다. `PROTOCOL_VERSION`은 `2026-10-27-omission-feedback-v9`입니다.
+현재 실행 코드는 프로젝트 최상위 `main.py`, `tasks/`에 있습니다. `PROTOCOL_VERSION`은 `2026-10-27-kst-timestamps-v15`입니다.
 
 - 검사 시작 시 `Hanyang participant sign-in` 창에서 **한양대학교 이메일**을 입력합니다. 공식 계정 형식인 `통합ID@hanyang.ac.kr`만 허용하고 앞뒤 공백·대문자를 정리합니다. 형식이 잘못되면 안내 후 다시 입력합니다. 같은 이메일은 모든 세션에서 같은 `participant` 값으로 저장됩니다. 이것은 입력 주소 형식 검사이며 실제 계정 소유자 인증이나 학교 SSO 연동은 아닙니다.
 - 이 이메일을 참가자 식별자와 Span Pre/Post 시퀀스의 안정적인 seed 입력으로 사용합니다. 이메일은 CSV에 직접 저장되며 파일명에는 넣지 않습니다. 지원 도메인은 `config.py`의 `PARTICIPANT_EMAIL_DOMAIN`에서 설정합니다. [한양대학교 IT 서비스의 계정 형식 설명](https://www.hanyang.ac.kr/web/www/it_s?_board_WAR_bbsportlet_action=view_message&_board_WAR_bbsportlet_messageId=699885&login_post_proc=true&p_p_col_count=1&p_p_col_id=column-1&p_p_id=board_WAR_bbsportlet&p_p_lifecycle=0&p_p_mode=view&p_p_state=normal)을 참고했습니다.
 - **세션당 `*_responses.csv` 하나만** 생성합니다. 참가자의 시행별 자극·RT·정오답·실제 반응을 보존하며, JSONL·시스템 설정·세션·블록 요약 등의 별도 파일은 생성하지 않습니다. 이전 요약 전용 변경은 철회했습니다. 기존 자료는 수정·삭제하지 않습니다.
 - Dual N-back은 한 행이 한 시행입니다. 시각 위치·청각 알파벳·N·target 여부·감각별 RT·정오답, 무응답·반복·동시 반응, 준비/채점/완료 여부를 보존합니다. 블록 정확도도 동일 CSV의 열로 추가하여 개별 RT 분석과 사후 재채점이 가능합니다. 시스템·장치 설정과 프레임별 진단 목록은 제외합니다.
-- 시행 중 현재 A/L 키 반응은 해당 박스에 즉시 `Correct` / `Incorrect`로 표시합니다. 아무 키도 누르지 않은 감각은 3초 응답 기한이 지난 뒤 다음 시행 첫 0.75초 동안 같은 박스에 결과를 표시합니다. 불일치 무응답은 `Correct`, 일치 무응답은 `Incorrect`입니다. 마지막 시행의 무응답 결과는 블록 요약 직전에 0.75초 동안 표시합니다. 표시 시간은 `NBACK_FEEDBACK.omission_result_s`에서 바꿀 수 있습니다.
+- 시행 중에는 실제 A/L 키 반응이 있을 때만 해당 박스에 `Correct` / `Incorrect`를 표시합니다. 무응답 결과는 화면에 표시하지 않습니다. 각 시행의 3초 응답 시간이 끝날 때까지 키 입력을 유효하게 받으며, 무응답은 그 뒤 내부적으로 채점해 블록 요약과 시행별 CSV에 반영합니다.
 - A/L 피드백 박스 중심을 -0.335에서 **-0.405 height**로 이동했습니다. 기본 크기에서 가장 아래 사각형의 하단(-0.280)과 피드백 상단(-0.335) 사이에는 0.055 height 간격이 있습니다. 위치·박스 높이는 `NBACK_UI.feedback_y`, `feedback_panel_height`에서 조정합니다.
 - 블록 요약에 Visual/Auditory 각각 **정답 수·오답 수·정확도**를 표시하고 같은 반응 CSV의 `block_*` 열에 저장합니다. 정확도는 `(hit + correct rejection) / 채점 완료 시행 수`입니다. 기본 설정은 준비 시행 제외 **20개**가 분모이며, 예를 들어 오류 2개면 `Correct 18/20 | Incorrect 2`, `90%`입니다. 화면은 정수 퍼센트로 반올림하고 요약 CSV에는 비율 실수를 저장합니다. 단순 target 검출률과 구분합니다. `score_warmup=True`로 변경하면 실제 채점에 포함된 시행 수를 사용합니다.
-- **전체 화면**은 시작 설정 창에서 `fullscreen`을 체크하거나 터미널 명령에 `--fullscreen`을 붙입니다. `--windowed`는 창 모드입니다. 기본값은 `DISPLAY.fullscr`이며 실제 선택·framebuffer 크기는 반응 CSV에 저장하지 않습니다. 실행 도중 전환하는 방식은 지원하지 않습니다.
+- 시작 설정 창의 `fullscreen` 체크박스를 제거했습니다. macOS에서는 실험 창 왼쪽 위의 초록색 기본 전체화면 버튼으로 전환할 수 있습니다. 창 크기가 바뀌면 PsychoPy의 그리기 영역도 갱신됩니다. 시행 타이밍에 영향을 주지 않도록 블록 시작 전에 전환하세요. 자동 검사용 CLI의 `--fullscreen` / `--windowed`는 유지합니다.
 - Dual N-back 글자는 macOS **Helvetica TrueType**을 실제 framebuffer 픽셀 크기로 렌더링합니다. 2배 해상도에서 윤곽을 그리고 네이티브 해상도로 축소해 표시하며 `useRetina=True`를 명시했습니다. 고해상도 글자 텍스처와 캐시를 담당하는 모듈은 `stimuli/text.py`입니다. 시행 헤더와 정오답 문구는 블록 전에 미리 준비합니다. 폰트 경로는 `NBACK_UI.font_path`에서 변경합니다. 외부 폰트 다운로드는 필요하지 않습니다. 화면의 물리적 해상도·macOS 배율에 따른 차이는 남을 수 있습니다.
 - **안내·소리 확인·준비·휴식 화면은 흰색 배경**으로 통일했습니다. 상단 짙은 회색 띠 안에 큰 흰색 `DUAL-N-BACK` 제목을 표시합니다. Get ready는 수직 여정 목록, Sound check는 큰 알파벳과 재생 진행 표시, How to respond는 A/L 키 안내, Begin은 500ms/2,500ms 주기 도식으로 각각 다르게 구성했습니다. 실제 시행 화면은 기존 남색 배경과 푸른 사각형을 사용합니다.
 - 하단 조작 안내는 **키보드 전용 버튼 모양**입니다. 마우스 클릭은 지원하지 않습니다. 소리 재생 중 SPACE를 누르면 현재·예약 재생을 멈추고 응답 방법 안내로 진행합니다. 이 조작은 다음 안내로 이동하며 참가자 반응 CSV에는 별도의 설정 행을 추가하지 않습니다.
-- 각 블록 뒤에는 마지막 시행의 `Last: Visual ... / Auditory ...` 문구를 표시하지 않습니다. 블록 정답·오답 수, 정확도, `Current N → Next N`, 남은 휴식 시간을 표시하고 **10초 후 키 조작 없이 다음 블록으로 이동**합니다. 시각·청각 오류가 각각 3개 미만이면 N을 1 올리고, 어느 감각이든 5개를 초과하면 N을 1 내립니다(최소 1). 그 외에는 유지합니다. 오류가 양쪽에서 엇갈리면 감소를 우선하는 규칙은 재현 가정(`ASSUMPTIONS.decrease_rule="either"`)입니다. SPACE로 휴식을 단축하지 않으며 ESC로 중단할 수 있습니다. 3초 시작 준비는 첫 블록에만 적용하므로 블록 사이에 10+3초가 누적되지 않습니다. 마지막 블록에서는 SPACE로 종료합니다.
+- 각 블록 뒤에는 마지막 시행의 `Last: Visual ... / Auditory ...` 문구를 표시하지 않습니다. 블록 정답·오답 수, 정확도, `Current N=... to Next N=...`, 남은 휴식 시간을 표시하고 **10초 후 키 조작 없이 다음 블록으로 이동**합니다. 시각·청각 오류가 각각 3개 미만이면 N을 1 올리고, 어느 감각이든 5개를 초과하면 N을 1 내립니다(최소 1). 그 외에는 유지합니다. 오류가 양쪽에서 엇갈리면 감소를 우선하는 규칙은 재현 가정(`ASSUMPTIONS.decrease_rule="either"`)입니다. SPACE로 휴식을 단축하지 않으며 ESC로 중단할 수 있습니다. 3초 시작 준비는 첫 블록에만 적용하므로 블록 사이에 10+3초가 누적되지 않습니다. 마지막 블록에서는 SPACE로 종료합니다.
 - 검사 중 상단에 `N=2 | Block 1/20 | Trial 1/20` 형태로 현재 난이도와 진행도를 계속 표시합니다. 피드백 글자 높이는 0.022에서 **0.044 height 단위(기존의 2배)**로 늘리고 `Visual`, `Auditory` 아래에 `Correct` / `Incorrect`만 표시합니다. 정답은 민트색, 오답은 부드러운 주황색입니다.
 - `config.py`의 `NBACK_UI`에서 배경·카드·글자·피드백 색, `feedback_height`, `countdown_s`(첫 블록), `inter_block_rest_s`(블록 사이, 기본 10초)를 바꿀 수 있습니다. 흰색 안내 화면은 `flow_*` 설정으로 변경합니다. 사각형 색은 `DISPLAY.square_color`, 시작 N은 `ASSUMPTIONS.start_n`입니다. UI 설정은 참가자 반응 CSV에 포함하지 않습니다.
 - 알파벳 WAV 8개는 `AUDIO_GENERATION.letter_names`의 `bee / eff / aitch / jay / em / cue / ar / double you`로 재생성했습니다. 대문자 문자열을 TTS에 전달하지 않아 `Capital` 안내어가 붙지 않도록 했습니다. 현재 8개 모두 시간축 압축 없이 500ms 파일 안에 들어갑니다. 숫자 음성은 기존과 같습니다.
@@ -30,7 +30,7 @@ Reading Span의 영어 문장은 **미검토 초안**입니다. A/B 각 42문장
 - **A는 시각 위치가 N개 전과 일치할 때, L은 청각 자음이 N개 전과 일치할 때** 누릅니다. 둘 다 일치하면 두 키, 둘 다 불일치하면 무반응입니다.
 - 응답 가능한 구간은 각 시행의 **0 ≤ RT < 3초**입니다. 500ms 후 사각형이 사라져도 계속 응답할 수 있습니다. 예를 들어 2.7초의 A 반응은 그 시행에 속하며 다음 시행은 원래 일정대로 진행됩니다.
 - 첫 유효 A/L 키 반응 뒤 다음 화면 갱신에서 해당 감각의 `Correct` 또는 `Incorrect`을 표시합니다. 양쪽 감각은 별도로 표시됩니다. 반복 입력은 점수와 최초 RT를 바꾸지 않으며 실제 키와 RT 목록에는 모두 남깁니다.
-- 무응답의 정오는 3초가 끝난 뒤에만 확정합니다. Target 무응답은 `Incorrect`, Non-target 무응답은 `Correct`입니다. 무응답 결과도 개별 시행과 블록 점수에 남깁니다.
+- 무응답의 정오는 3초가 끝난 뒤에만 확정하며 시행 중에는 보여주지 않습니다. Target 무응답은 `Incorrect`, Non-target 무응답은 `Correct`입니다. 무응답 결과도 개별 시행 CSV와 블록 점수에 남깁니다.
 - `NBACK_FEEDBACK.enabled`에서 현재 반응 피드백 사용 여부를 바꿀 수 있습니다. **시행 중 즉시 피드백은 사용자가 추가한 조건이며, 원논문 본문에 명시된 조건이라고 주장하지 않습니다.**
 - 첫 N개는 기억을 채우는 준비 시행이며, 그 뒤 **채점 시행 20개**가 진행됩니다. 화면에 `Warm-up` / `Trial 1/20` 등을 구분합니다. 준비 시행의 반응 피드백은 표시하되 적응 난이도 채점에서는 제외합니다.
 - 자음은 공유 PTB 출력 장치에서 미리 로드하고 사각형과 같은 onset에 예약합니다. 재생 예약과 반응은 기존 공통 프레임 일정으로 처리하지만 음성별 시각은 저장하지 않습니다.
@@ -51,17 +51,18 @@ Reading Span의 영어 문장은 **미검토 초안**입니다. A/B 각 42문장
 
 1. [공식 설치 페이지](https://psychopy.org/download.html)에서 macOS용 **PsychoPy Standalone**을 설치합니다. 이 컴퓨터의 Standalone **2026.2.4**로 실제 실행을 검사했습니다. 시스템 Python과 Standalone에 내장된 Python은 서로 다를 수 있습니다.
 2. PsychoPy를 열고 Coder에서 이 폴더의 `main.py`를 엽니다. Run을 누릅니다.
-3. `email`에는 본인의 한양대학교 이메일(예: `student01@hanyang.ac.kr`), `task`에는 과제를 선택합니다. Dual N-back은 `phase=training`, Span은 `pretest` 또는 `posttest`를 선택합니다.
-4. Digit Span은 `mode=forward` 또는 `backward`를 골라 **각각 별도로 실행**합니다. 두 방향의 중단 규칙과 점수는 독립적입니다.
-5. 실제 실험은 헤드폰을 연결하여 17개 음성의 발음·음량을 확인한 뒤 시작합니다. 작업용 창 모드가 기본입니다. 시작 설정 창에서 `fullscreen`을 체크하면 전체 화면을 사용합니다. 창 크기·기본 전체 화면 설정은 `config.py`의 `DISPLAY`에서 변경합니다.
-6. 데이터는 실행 위치와 관계없이 이 프로젝트의 `data/`에 저장됩니다. ESC 또는 회상 입력창의 취소는 중단으로 기록됩니다.
+3. `email`에는 본인의 한양대학교 이메일(예: `student01@hanyang.ac.kr`), `task`에는 과제를 선택합니다. Dual N-back은 `phase=training`, Span은 `pretest` 또는 `posttest`를 선택합니다. 잘못된 조합을 고르면 경고창이 뜨고 선택 창으로 돌아가므로 다시 고를 수 있습니다. 유효한 선택 전에는 데이터 파일을 만들지 않습니다.
+4. Digit Span의 참가자용 실행은 **Forward로 고정**되어 있습니다. 시작 설정 창에 방향 선택란이 없습니다.
+5. 선택한 Span의 Pretest가 끝나면 Dual N-back Training 진행 여부를 묻습니다. Training이 끝나면 같은 Span의 Posttest 진행 여부를 묻습니다. 화면에서 **SPACE**는 계속, **N**는 종료입니다. 처음부터 Training만 시작했고 앞선 Pretest 기록이 없다면 계속하기를 선택한 뒤 **D**(Digit Span) 또는 **R**(Reading Span)로 Posttest 검사를 고릅니다. 같은 이메일의 완료된 Pretest 기록이 있으면 가장 최근 검사를 제안합니다. 각 과제는 별도 `session_id`와 CSV를 만들고 `participant` 이메일은 동일하게 유지합니다.
+6. 실제 실험은 헤드폰을 연결하여 17개 음성의 발음·음량을 확인한 뒤 시작합니다. 작업용 창 모드가 기본이며 macOS 초록색 전체화면 버튼으로 화면을 키울 수 있습니다. 창 크기·기본 전체 화면 설정은 `config.py`의 `DISPLAY`에서 변경합니다.
+7. 데이터는 실행 위치와 관계없이 이 프로젝트의 `data/`에 저장됩니다. ESC 또는 회상 입력창의 취소는 중단으로 기록됩니다.
 
 PsychoPy가 설치된 Python 환경에서는 다음 명령도 가능합니다.
 
 ```bash
 python main.py --task dual_nback --email student01@hanyang.ac.kr --phase training --fullscreen
-python tasks/digit_span.py --email student01@hanyang.ac.kr --phase pretest --mode forward
-python tasks/digit_span.py --email student01@hanyang.ac.kr --phase posttest --mode backward
+python tasks/digit_span.py --email student01@hanyang.ac.kr --phase pretest
+python tasks/digit_span.py --email student01@hanyang.ac.kr --phase posttest
 python tasks/reading_span.py --email student01@hanyang.ac.kr --phase pretest
 ```
 
@@ -100,7 +101,7 @@ python tasks/reading_span.py --email student01@hanyang.ac.kr --phase pretest
 ### Digit Span
 
 - 영어 숫자 WAV를 1초 간격으로 예약 재생합니다. 숫자는 1~9이며 바로 인접한 반복을 금지합니다.
-- Forward 3~9, Backward 2~8, 길이마다 2회입니다. 같은 길이에서 2회 모두 실패하면 해당 방향의 본검사를 종료합니다.
+- 참가자용 실행은 Forward 3~9, 길이마다 2회입니다. 같은 길이에서 2회 모두 실패하면 본검사를 종료합니다. Backward 구현은 내부 연구용 함수에 남아 있지만 시작 화면과 명령행에서는 선택할 수 없습니다.
 - 방향별 연습은 최단 길이 2회이며 정답 피드백을 제공합니다. 본검사에서는 정답을 보여주지 않습니다.
 - 마지막 숫자의 1초 슬롯이 끝난 뒤 숫자 키로 입력하고 Enter로 제출합니다. Backspace로 수정할 수 있고, 입력 길이를 강제하지 않으며 누락·과다 응답도 점수 계산에 반영합니다. 개별 자극·정답 순서·입력 결과와 키 이벤트를 저장합니다.
 - `exact_serial_accuracy`: 완전히 맞은 시행 수 / 시행 수. `total_correct`: 완전히 맞은 시행 수. `maximum_span`: 한 번 이상 완전히 회상한 가장 긴 길이, 없으면 0입니다.
@@ -137,15 +138,18 @@ python3 tools/validate_materials.py --draft
 
 이 승인은 연구자의 문항 검토 기록입니다. 파일의 `yes` 표시나 해시가 통계적인 동등성 검증을 대신하지 않습니다. **제공된 파일은 모두 `reviewed=no`, 난이도 검토=false입니다.**
 
+현재 `config.py`의 `READING_SPAN.allow_draft_materials=True`이므로 개발 중에는 초안 문항으로 과제를 실행할 수 있습니다. 정식 자료 수집 전에는 문항 검토·승인을 마치고 이 값을 `False`로 바꾸세요. 이때는 승인되지 않은 문항이나 해시가 바뀐 CSV를 다시 차단합니다. 개발 실행의 반응 CSV에는 `material_status=draft`가 남습니다.
+
 ## 데이터 파일: 참가자 반응 CSV 하나
 
-매 실행에서 `data/<과제>_<시각>_<고유번호>_responses.csv` **한 파일만** 생성합니다. Excel에서 열 수 있는 UTF-8 BOM CSV입니다. JSONL, session CSV, block summary CSV, 기술 진단 파일을 추가로 생성하지 않습니다. 기존 기록 파일은 그대로 둡니다.
+매 실행에서 `data/<과제>_<한국시간 YYYY-MM-DD_HH-MM-SS>_<고유번호>_responses.csv` **한 파일만** 생성합니다. `session_id`에도 같은 한국시간(KST) 시각을 쓰고, CSV의 `recorded_kst`는 `YYYY-MM-DD HH:MM:SS` 24시간제로 저장합니다. Excel에서 열 수 있는 UTF-8 BOM CSV입니다. JSONL, session CSV, block summary CSV, 기술 진단 파일을 추가로 생성하지 않습니다. 기존 UTC 기록 파일은 그대로 둡니다.
 
 Dual N-back은 **한 행 = 한 시행**이며 두 감각의 반응을 같은 행에 보존합니다.
 
 | 주요 열 | 의미 |
 |---|---|
 | `participant`, `session_id`, `phase` | 정규화한 한양대학교 이메일·실행·검사 단계 구분 |
+| `recorded_kst` | 한국시간 기록 시각, `YYYY-MM-DD HH:MM:SS` |
 | `block`, `n`, `trial_number` | 블록·난이도·블록 내 시행 번호(1부터, 준비 시행 포함) |
 | `visual_position`, `visual_x`, `visual_y` | 0~7 위치 ID, 중심 기준 height 좌표 |
 | `auditory_letter` | 실제 청각 알파벳 |
@@ -166,7 +170,7 @@ Dual N-back은 **한 행 = 한 시행**이며 두 감각의 반응을 같은 행
 
 분석에서는 기본적으로 `scored=True`, `complete=True`를 사용합니다. 무응답을 RT=0으로 바꾸지 마세요. 중단된 시행은 자극·현재까지 수집한 키·RT를 남기되 `complete=False`, `scored=False`로 표시하고 아직 확정할 수 없는 정오답·outcome은 빈칸으로 둡니다. 블록을 끝내지 못하면 그 블록의 정확도 열은 비어 있습니다. 블록 통계는 해당 블록 시행 행들에 반복되므로 블록별로 한 번만 읽으며, 반복된 값을 합산하지 않습니다.
 
-Digit Span도 같은 파일명 규칙의 단일 CSV에 자극 숫자·정답 순서·회상 결과·RT·정오답·숫자 키 이벤트를 기록합니다. Reading Span은 `event_type=sentence_judgment/reading_recall`로 문장 판단과 세트 회상을 구분하고 문장·정답·최종 응답·RT·위치별 점수를 보존합니다. 배열·숫자 키 이벤트는 CSV 셀 안의 JSON 문자열이며 별도 JSON 파일은 만들지 않습니다. `stage=practice/test`를 구분해 분석하세요. 제시 시작 후 중단된 Span 문항은 `*_incomplete` 행으로 구분하며 완성된 응답처럼 채점하지 않습니다.
+Digit Span도 같은 파일명 규칙의 단일 CSV에 자극 숫자·정답 순서·회상 결과·RT·정오답·숫자 키 이벤트를 기록합니다. Reading Span은 `event_type=sentence_judgment/reading_recall`로 문장 판단과 세트 회상을 구분하고 문장·정답·최종 응답·RT·위치별 점수·`material_status`를 보존합니다. 배열·숫자 키 이벤트는 CSV 셀 안의 JSON 문자열이며 별도 JSON 파일은 만들지 않습니다. `stage=practice/test`를 구분해 분석하세요. 제시 시작 후 중단된 Span 문항은 `*_incomplete` 행으로 구분하며 완성된 응답처럼 채점하지 않습니다.
 
 N-back 원반응은 프레임 타이밍에 디스크 쓰기가 영향을 주지 않도록 블록 종료 또는 ESC 중단 시 저장합니다. 저장된 행은 즉시 flush합니다. 종료 시 같은 CSV의 상태 열을 갱신합니다. 강제 프로세스 종료 시 진행 중 블록은 유실될 수 있고, 이미 저장된 행의 상태는 `running`으로 남을 수 있습니다. 실행 전 중단해 실제 시행이 없으면 헤더만 남습니다.
 

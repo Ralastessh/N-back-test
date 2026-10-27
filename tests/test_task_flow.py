@@ -60,6 +60,12 @@ class TaskFlowTests(unittest.TestCase):
             "psychtoolbox": SimpleNamespace(GetSecs=lambda: 100),
         }
 
+    def test_reading_formal_mode_still_blocks_unreviewed_materials(self):
+        with patch.dict(READING_SPAN, {"allow_draft_materials": False}), \
+             patch.dict(sys.modules, self.modules(object())):
+            with self.assertRaisesRegex(ValueError, "Unreviewed item"):
+                reading_span.run(Window(), Log(), 42)
+
     def test_digit_stops_after_two_failures_at_same_length(self):
         for mode in ("forward", "backward"):
             log = Log()
@@ -137,8 +143,8 @@ class TaskFlowTests(unittest.TestCase):
 
         log = Log()
         with patch.dict(sys.modules, self.modules(Keyboard())), patch.object(
-            reading_span, "load_reading_materials", return_value=material
-        ), patch.object(reading_span, "pause"), patch.object(
+            reading_span, "pause"
+        ), patch.object(
             reading_span, "show"
         ), patch.object(
             reading_span, "recall_words", return_value=([], 0.5)
@@ -156,6 +162,7 @@ class TaskFlowTests(unittest.TestCase):
         ]
         self.assertEqual(len(judgments), 42)
         self.assertEqual(len(recalls), 12)
+        self.assertTrue(all(r["material_status"] == "draft" for r in judgments + recalls))
         self.assertTrue(all(r["timed_out"] for r in judgments))
         summary = [
             r

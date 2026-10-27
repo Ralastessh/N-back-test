@@ -74,14 +74,13 @@ class FeedbackDisplay:
         for label in self.labels:
             label.prepare(label.text, self.theme["muted"])
 
-    def draw(self, header, current, completed=None):
-        completed = completed or {}
+    def draw(self, header, current):
         self.update(self.header, header)
         for modality, panel, label in zip(
             ("visual", "auditory"), self.panels, self.labels
         ):
             panel.draw()
             label.draw()
-            result = current.get(modality, completed.get(modality, ""))
+            result = current.get(modality, "")
             color = self.theme["correct"] if result == "Correct" else self.theme["incorrect"]
             self.update(getattr(self, modality), result, color)

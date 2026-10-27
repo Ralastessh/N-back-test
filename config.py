@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-PROTOCOL_VERSION = "2026-10-27-omission-feedback-v9"
+PROTOCOL_VERSION = "2026-10-27-kst-timestamps-v15"
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 # USER: 참가자 구분을 위해 입력받는 한양대학교 계정의 이메일 도메인.
@@ -33,7 +33,7 @@ ASSUMPTIONS = dict(
     audio_source="macOS say Samantha English",
 )
 # USER modification: immediate per-modality feedback, without pausing trials.
-NBACK_FEEDBACK = dict(enabled=True, omission_result_s=0.75)
+NBACK_FEEDBACK = dict(enabled=True)
 # Use a shared PTB output device. None uses the PsychoPy output preference.
 AUDIO_PLAYBACK = dict(
     device_name=None, volume=1.0, check_before_session=True, schedule_lead_s=0.1
@@ -100,6 +100,7 @@ DIGIT_SPAN = dict(
 )
 # USER: 사용자 지정 Reading Span. 승인되지 않은 문항은 실행 불가.
 READING_SPAN = dict(
+    allow_draft_materials=True,  # 개발 중 실행. 정식 수집 전 False로 바꾸고 문항을 승인한다.
     lengths=[2, 3, 4, 5],
     sets_per_size=3,
     randomized_set_order=True,

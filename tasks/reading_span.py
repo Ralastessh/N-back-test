@@ -27,9 +27,16 @@ def run(win, logger, seed):
         raise ValueError(
             "At least two correct practice RTs are required for a sample SD."
         )
+    draft = settings["allow_draft_materials"]
     materials = load_reading_materials(
-        ROOT / settings["sentence_file"], settings, ROOT / settings["review_file"]
+        ROOT / settings["sentence_file"], settings, ROOT / settings["review_file"],
+        require_review=not draft,
     )
+    material_status = "draft" if draft else "approved"
+
+    def write(kind, **fields):
+        logger.write(kind, material_status=material_status, **fields)
+
     form = settings["form_by_phase"][logger.phase]
 
     def run_sets(groups, stage, timeout, attempt=1):
@@ -39,7 +46,7 @@ def run(win, logger, seed):
         for set_id, group in groups:
             words = []
             for row in group:
-                logger.write(
+                write(
                     "sentence_start",
                     stage=stage,
                     attempt=attempt,
@@ -76,7 +83,7 @@ def run(win, logger, seed):
                 if correct:
                     correct_rts.append(key.rt)
                 words.append(row["recall_word"])
-                logger.write(
+                write(
                     "sentence_judgment",
                     stage=stage,
                     attempt=attempt,
@@ -95,7 +102,7 @@ def run(win, logger, seed):
             recalled, rt = recall_words(win)
             score = score_recall(words, recalled)
             recalls.append(score)
-            logger.write(
+            write(
                 "reading_recall",
                 stage=stage,
                 attempt=attempt,
@@ -108,7 +115,7 @@ def run(win, logger, seed):
             )
             if stage == "practice":
                 pause(win, "Correct recall: " + " / ".join(words), kb)
-        logger.write(
+        write(
             "reading_summary",
             stage=stage,
             attempt=attempt,
@@ -119,7 +126,8 @@ def run(win, logger, seed):
 
     pause(
         win,
-        "Reading Span practice\nJudge whether each sentence is plausible. Remember its final word.\nRecall the final words in order. Use _ for a missing word.",
+        ("Reading Span practice [DRAFT MATERIALS]" if draft else "Reading Span practice")
+        + "\nJudge whether each sentence is plausible. Remember its final word.\nRecall the final words in order. Use _ for a missing word.",
         kb,
     )
     attempt = 1
@@ -136,14 +144,15 @@ def run(win, logger, seed):
     timeout = practice_timeout(
         rts, settings["timeout_sd_multiplier"], settings["min_correct_practice_rts"]
     )
-    logger.write(
+    write(
         "reading_timeout", correct_practice_rts=rts, timeout_s=timeout, attempt=attempt
     )
     groups = list(materials[form].items())
     if settings["randomized_set_order"]:
         random.Random(f"{seed}:{form}").shuffle(groups)
-    logger.write("reading_order", form=form, set_order=[key for key, _ in groups])
-    pause(win, "The test will now begin. Each sentence has a time limit.", kb)
+    write("reading_order", form=form, set_order=[key for key, _ in groups])
+    pause(win, ("Draft test" if draft else "The test")
+          + " will now begin. Each sentence has a time limit.", kb)
     run_sets(groups, "test", timeout)
 
 
