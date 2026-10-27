@@ -1,9 +1,11 @@
 """3초 창, 경계 시각, 즉시 피드백 및 반응과 무관한 시행 일정을 검증한다."""
 
 import unittest
+import sys
+from unittest.mock import patch
 from types import SimpleNamespace
 from utils.sequence import Trial
-from utils.nback_response import record_response, trial_outcomes, current_feedback
+from utils.nback_response import record_response, trial_outcomes, current_feedback, completed_omissions
 from tasks.dual_nback import run_block
 
 KEYS = {"a": "visual", "l": "auditory"}
@@ -45,7 +47,7 @@ class ResponseTests(unittest.TestCase):
         self.assertEqual(current_feedback(trial, data[0], KEYS), {})
         record_response(data, "a", 2.7, KEYS, 3)
         self.assertEqual(
-            current_feedback(trial, data[0], KEYS), {"visual": "Correct (Hit)"}
+            current_feedback(trial, data[0], KEYS), {"visual": "Correct"}
         )
 
     def test_repeat_does_not_change_first_rt(self):
@@ -141,18 +143,19 @@ class TimingTests(unittest.TestCase):
             Trial(0, 0, "B", True, False, False),
             Trial(1, 1, "F", False, True, False),
         ]
-        data, errors = run_block(
-            win,
-            kb,
-            SimpleNamespace(draw=lambda *a: None),
-            feedback,
-            audio,
-            trials,
-            0,
-            1,
-            logger,
-            1 / 60,
-        )
+        class FakeClock:
+            def __init__(self):
+                self.start = win.now
+
+            def getTime(self):
+                return win.now - self.start
+
+        fake_psychopy = SimpleNamespace(core=SimpleNamespace(Clock=FakeClock))
+        with patch.dict(sys.modules, {"psychopy": fake_psychopy}):
+            data, errors = run_block(
+                win, kb, SimpleNamespace(draw=lambda *a: None), feedback,
+                audio, trials, 0, 1, logger, 1 / 60,
+            )
         return data, errors, feedback, audio, kb.zero
 
     def test_27_second_key_feedback_does_not_move_next_onset(self):
@@ -166,9 +169,9 @@ class TimingTests(unittest.TestCase):
         self.assertGreaterEqual(shown, 2.7)
         self.assertLess(shown, 2.74)
         self.assertTrue(
-            any(row[1].get("visual") == "Correct (Hit)" for row in feedback.frames)
+            any(row[1].get("visual") == "Correct" for row in feedback.frames)
         )
-        self.assertTrue(any("Correct Rejection" in row[2] for row in feedback.frames))
+        self.assertTrue(any(row[2].get("auditory") == "Correct" for row in feedback.frames))
         for i in range(2):
             self.assertAlmostEqual(audio.scheduled[i] - zero, data[i]["onset"])
 
@@ -180,6 +183,28 @@ class TimingTests(unittest.TestCase):
         self.assertTrue(
             any("Incorrect" in row[1].get("auditory", "") for row in feedback.frames)
         )
+
+    def test_no_response_shows_both_results_after_deadline(self):
+        data, _, feedback, _, _ = self.execute([])
+        self.assertEqual(completed_omissions(
+            Trial(0, 0, "B", True, False, False), data[0], KEYS),
+            {"visual": "Incorrect", "auditory": "Correct"})
+        before = [row for row in feedback.frames if row[0] < 3]
+        self.assertTrue(all(not row[2] for row in before))
+        after = [row for row in feedback.frames if 3 <= row[0] < 3.75]
+        self.assertTrue(any(row[2] == {"visual": "Incorrect", "auditory": "Correct"}
+                            for row in after))
+        self.assertAlmostEqual(data[0]["result_display_onset"], 3.0, places=2)
+        self.assertTrue(any(row[2] == {"visual": "Correct", "auditory": "Incorrect"}
+                            for row in feedback.frames if row[0] >= 6.0))
+        self.assertGreaterEqual(data[1]["result_display_onset"], 6.0)
+
+    def test_current_response_overrides_last_turn_result(self):
+        _, _, feedback, _, _ = self.execute([("l", 3.2)])
+        self.assertTrue(any(row[1].get("auditory") == "Correct" and
+                            row[2] == {"visual": "Incorrect"}
+                            for row in feedback.frames))
+
 
 
 if __name__ == "__main__":

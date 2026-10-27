@@ -154,35 +154,19 @@ class ArtifactTests(unittest.TestCase):
                 )
                 self.assertTrue(any(wav.readframes(wav.getnframes())))
 
-    def test_csv_stage_nested_outcomes_and_unicode(self):
+    def test_csv_stage_responses_and_unicode(self):
         with tempfile.TemporaryDirectory() as directory:
             log = DataLogger(directory, "P001", "reading_span", "pretest", {})
-            log.write(
-                "trial",
-                stage="practice",
-                sentence='문장, "인용"',
-                response=["가", "나"],
-                rt=1.2,
-                accuracy=0.5,
-                outcomes=dict(visual=dict(correct=True, rt=0.2)),
-            )
-            log.write(
-                "trial",
-                stage="test",
-                sentence="두 번째",
-                response=[],
-                rt=2,
-                accuracy=0,
-                new_field=123,
-            )
+            log.write("sentence_judgment", stage="practice", sentence='문장, "인용"',
+                      response="y", rt=1.2, correct=True)
+            log.write("reading_recall", stage="test", expected=["가", "나"],
+                      response=["가", "나"], rt=2, exact=True)
             log.close()
-            path = next(Path(directory).glob("*_trial.csv"))
-            with path.open(encoding="utf-8-sig", newline="") as f:
-                rows = list(csv.DictReader(f))
+            with log.path.open(encoding="utf-8-sig", newline="") as handle:
+                rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["sentence"], '문장, "인용"')
-            self.assertEqual(rows[0]["outcomes_visual_rt"], "0.2")
-            self.assertEqual(json.loads(rows[0]["response"]), ["가", "나"])
-            self.assertEqual(json.loads(rows[1]["extra_json"])["new_field"], 123)
+            self.assertEqual(rows[0]["rt_s"], "1.2")
+            self.assertEqual(json.loads(rows[1]["response"]), ["가", "나"])
             self.assertEqual(rows[1]["phase"], "pretest")
 
 

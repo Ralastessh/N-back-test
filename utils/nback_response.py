@@ -4,10 +4,10 @@ from bisect import bisect_right
 from utils.scoring import classify
 
 OUTCOME_LABELS = {
-    "hit": "Correct (Hit)",
-    "miss": "Incorrect (Miss)",
-    "correct_rejection": "Correct (Correct Rejection)",
-    "false_alarm": "Incorrect (False Alarm)",
+    "hit": "Correct",
+    "miss": "Incorrect",
+    "correct_rejection": "Correct",
+    "false_alarm": "Incorrect",
 }
 
 
@@ -50,9 +50,11 @@ def current_feedback(trial, record, key_map):
     }
 
 
-def completed_feedback(trial, record, key_map):
+def completed_omissions(trial, record, key_map):
+    """반응 창이 끝난 시행에서 누르지 않은 감각만 화면에 공개한다."""
     outcomes = trial_outcomes(trial, record, key_map)
-    return " | ".join(
-        f'{modality.title()}: {OUTCOME_LABELS[result["outcome"]]}'
+    return {
+        modality: OUTCOME_LABELS[result["outcome"]]
         for modality, result in outcomes.items()
-    )
+        if result["rt"] is None
+    }

@@ -17,11 +17,14 @@ from config import (
     AUDIO_GENERATION,
     AUDIO_PLAYBACK,
     NBACK_FEEDBACK,
+    NBACK_UI,
     DIGIT_SPAN,
     READING_SPAN,
     require_decisions,
+    PARTICIPANT_EMAIL_DOMAIN,
 )
 from utils.data_logger import DataLogger
+from utils.participant import normalize_hanyang_email
 
 
 def main(default_task=None):
@@ -31,10 +34,15 @@ def main(default_task=None):
         choices=["dual_nback", "digit_span", "reading_span"],
         default=default_task,
     )
-    parser.add_argument("--participant")
+    parser.add_argument("--email", "--participant", dest="email",
+                        help=f"Hanyang University email (@{PARTICIPANT_EMAIL_DOMAIN})")
     parser.add_argument("--phase", choices=["training", "pretest", "posttest"])
     parser.add_argument("--mode", choices=["forward", "backward"], default=None)
     parser.add_argument("--seed", type=int, default=None)
+    screen = parser.add_mutually_exclusive_group()
+    screen.add_argument("--fullscreen", dest="fullscreen", action="store_true")
+    screen.add_argument("--windowed", dest="fullscreen", action="store_false")
+    parser.set_defaults(fullscreen=None)
     args = parser.parse_args()
     # sound 모듈을 불러오기 전에 PTB를 선택한다.
     from psychopy import prefs
@@ -43,14 +51,26 @@ def main(default_task=None):
     from psychopy import gui, visual, __version__
 
     info = dict(
-        participant=args.participant or "P001",
+        email=args.email or "",
         task=[args.task] if args.task else ["dual_nback", "digit_span", "reading_span"],
         phase=[args.phase] if args.phase else ["training", "pretest", "posttest"],
         mode=[args.mode] if args.mode else ["forward", "backward"],
+        fullscreen=DISPLAY["fullscr"] if args.fullscreen is None else args.fullscreen,
     )
-    if not args.participant or not args.task or not args.phase:
-        if not gui.DlgFromDict(info, title="Jaeggi 2008").OK:
-            return
+    if not args.email or not args.task or not args.phase:
+        while True:
+            if not gui.DlgFromDict(info, title="Hanyang participant sign-in").OK:
+                return
+            try:
+                email = normalize_hanyang_email(info["email"])
+                break
+            except ValueError as error:
+                warning = gui.Dlg(title="Check university email")
+                warning.addText(str(error))
+                warning.show()
+    else:
+        email = normalize_hanyang_email(args.email)
+    info["participant"] = email
     task = args.task or info["task"]
     phase = args.phase or info["phase"]
     if task != "dual_nback" and phase == "training":
@@ -61,12 +81,9 @@ def main(default_task=None):
         "reading_span": READING_SPAN,
     }[task]
     require_decisions(settings, task)
-    info["participant"] = info["participant"].strip()
-    if not info["participant"]:
-        raise ValueError("Enter a participant ID.")
     # 동일 참가자 Pre/Post는 동일 기반 seed에서 겹치지 않는 두 form을 생성한다.
     participant_seed = int.from_bytes(
-        hashlib.sha256(info["participant"].strip().encode()).digest()[:8], "big"
+        hashlib.sha256(email.encode()).digest()[:8], "big"
     )
     seed = (
         args.seed
@@ -75,6 +92,7 @@ def main(default_task=None):
     )
     if isinstance(info["mode"], list):
         info["mode"] = args.mode or "forward"
+    display_settings = dict(DISPLAY, fullscr=bool(info["fullscreen"]))
     logger = DataLogger(
         DATA_DIR,
         info["participant"],
@@ -91,6 +109,7 @@ def main(default_task=None):
             audio_generation=AUDIO_GENERATION,
             audio_playback=AUDIO_PLAYBACK,
             nback_feedback=NBACK_FEEDBACK,
+            nback_ui=NBACK_UI,
             stimulus_hashes={
                 str(path.relative_to(ROOT)): hashlib.sha256(
                     path.read_bytes()
@@ -99,7 +118,7 @@ def main(default_task=None):
                 + [ROOT / READING_SPAN["sentence_file"]]
                 if path.is_file()
             },
-            display=DISPLAY,
+            display=display_settings,
             digit_span=DIGIT_SPAN,
             reading_span=READING_SPAN,
             mode=info["mode"],
@@ -108,9 +127,13 @@ def main(default_task=None):
     win = None
     try:
         win = visual.Window(
-            **{k: DISPLAY[k] for k in ("size", "fullscr", "units", "color")},
+            **{k: display_settings[k] for k in ("size", "fullscr", "units", "color", "useRetina")},
             allowGUI=True,
         )
+        logger.write("display_runtime", fullscr=win.fullscr,
+                     framebuffer_pixels=list(map(int, win.size)), use_retina=win.useRetina)
+        if task == "dual_nback":
+            win.color = NBACK_UI["background"]
         module = importlib.import_module("tasks." + task)
         kwargs = dict(mode=info["mode"]) if task == "digit_span" else {}
         module.run(win, logger, seed, **kwargs)

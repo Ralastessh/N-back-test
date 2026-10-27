@@ -43,3 +43,12 @@ def score_recall(expected, recalled):
         accuracy=correct / len(expected) if expected else 0,
         exact=list(expected) == list(recalled),
     )
+
+
+def nback_summary(errors, total):
+    """감각별 전체 정확도: hit+correct rejection / 채점 완료 시행 수."""
+    if total < 1 or any(not 0 <= count <= total for count in errors.values()):
+        raise ValueError("Invalid scored trial or error count.")
+    return {modality: dict(correct=total - count, incorrect=count, total=total,
+                           accuracy=(total - count) / total)
+            for modality, count in errors.items()}

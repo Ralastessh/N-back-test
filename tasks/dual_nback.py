@@ -14,17 +14,23 @@ from config import (
     AUDIO_DIR,
     AUDIO_PLAYBACK,
     NBACK_FEEDBACK,
+    NBACK_UI,
     require_decisions,
 )
 from utils.sequence import generate_block
-from utils.scoring import adapt_n
+from utils.scoring import adapt_n, nback_summary
 from utils.nback_response import (
     record_response,
     trial_outcomes,
     current_feedback,
-    completed_feedback,
+    completed_omissions,
     OUTCOME_LABELS,
 )
+
+
+def trial_header(trial, index, n, block):
+    progress = f"Warm-up {index + 1}/{n}" if trial.warmup else f"Trial {index - n + 1}/{NBACK['scored_trials']}"
+    return f"N={n}  |  Block {block}/{NBACK['blocks']}  |  {progress}"
 
 
 def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_s):
@@ -47,6 +53,8 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
         for _ in trials
     ]
     audio.prepare_block([trial.auditory for trial in trials])
+    if hasattr(feedback, "prepare"):
+        feedback.prepare([trial_header(trial, i, n, block) for i, trial in enumerate(trials)])
     win.frameIntervals = []
     win.recordFrameIntervals = True
 
@@ -95,25 +103,20 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
             if 0 <= index < len(trials):
                 trial = trials[index]
                 shapes.draw(trial.visual if within < visible_frames else None)
-                header = (
-                    f"{n}-back | Warm-up {index + 1}/{n} (not scored)"
-                    if trial.warmup
-                    else f'{n}-back | Trial {index - n + 1}/{NBACK["scored_trials"]}'
-                )
+                header = trial_header(trial, index, n, block)
                 current = current_feedback(trial, records[index], key_map)
-                previous = ""
-                # 경계 flip 이후에 키 큐를 다시 읽은 다음, 이전 시행의 무응답을 판정한다.
-                if (
-                    index > 0
-                    and 0 < within * frame_s <= NBACK_FEEDBACK["previous_result_s"]
-                ):
-                    previous = "Previous trial: " + completed_feedback(
-                        trials[index - 1], records[index - 1], key_map
-                    )
-                    shown_records.append(index - 1)
                 if NBACK_FEEDBACK["enabled"]:
-                    feedback.draw(header, current, previous)
+                    completed = (
+                        completed_omissions(trials[index - 1], records[index - 1], key_map)
+                        if index > 0 and within * frame_s < NBACK_FEEDBACK["omission_result_s"]
+                        else {}
+                    )
+                    visible_completed = {name: result for name, result in completed.items()
+                                         if name not in current}
+                    feedback.draw(header, current, visible_completed)
                     shown_records.append(index)
+                    if visible_completed:
+                        shown_records.append(index - 1)
                 else:
                     feedback.draw(header, {})
             else:
@@ -135,13 +138,27 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
                         for event in records[shown]["feedback_events"]:
                             if event["display_onset"] is None:
                                 event["display_onset"] = relative_flip
-                        if (
-                            shown < index
-                            and records[shown]["result_display_onset"] is None
-                        ):
+                        if shown < index and records[shown]["result_display_onset"] is None:
                             records[shown]["result_display_onset"] = relative_flip
-        # 최종 응답 구간의 마지막 프레임에 들어온 키도 발생 시각에 따라 수집한다.
+        # 마지막 시행에는 다음 자극이 없으므로 블록 밖에서 무응답 피드백을 보여 준다.
         collect_keys()
+        if NBACK_FEEDBACK["enabled"] and trials:
+            last = len(trials) - 1
+            omitted = completed_omissions(trials[last], records[last], key_map)
+            if omitted:
+                from psychopy import core
+                clock = core.Clock()
+                win.recordFrameIntervals = False
+                while clock.getTime() < NBACK_FEEDBACK["omission_result_s"]:
+                    if any(key.name == "escape" for key in kb.getKeys(
+                            keyList=["escape"], waitRelease=False, clear=True)):
+                        raise KeyboardInterrupt
+                    shapes.draw()
+                    feedback.draw(f"N={n}  |  Block {block}/{NBACK['blocks']}  |  Complete",
+                                  {}, omitted)
+                    shown_at = win.flip() - base_flip
+                    if records[last]["result_display_onset"] is None:
+                        records[last]["result_display_onset"] = shown_at
     finally:
         win.recordFrameIntervals = False
         for i, record in enumerate(records):
@@ -180,7 +197,7 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
 
 def run(win, logger, seed):
     require_decisions(ASSUMPTIONS, "Dual N-back")
-    from psychopy import visual
+    from stimuli.nback_ui import ParticipantScreens
     from psychopy.hardware import keyboard
     from stimuli.visual import VisualStimuli, FeedbackDisplay
     from stimuli.auditory import AuditoryStimuli
@@ -189,12 +206,20 @@ def run(win, logger, seed):
         raise ValueError("Visual and auditory keys must be different.")
     if not 0 < ASSUMPTIONS["response_window_s"] <= NBACK["stimulus_s"] + NBACK["isi_s"]:
         raise ValueError("The response window must fit inside one trial.")
+    win.color = NBACK_UI["background"]
+    screens = ParticipantScreens(win)
     kb = keyboard.Keyboard()
     shapes = VisualStimuli(win, DISPLAY)
     feedback = FeedbackDisplay(win)
     audio = AuditoryStimuli(AUDIO_DIR, ASSUMPTIONS["consonants"], NBACK["stimulus_s"])
-    audio.check(win, kb, logger)
-    flip_times = [win.flip() for _ in range(121)]
+    screens.welcome(kb)
+    audio.check(win, kb, logger, screens=screens)
+    screens.instructions(kb)
+    flip_times = []
+    for _ in range(121):
+        win.color = NBACK_UI["flow_background"]
+        screens.text("calibration", "Preparing your display...", (0, 0), .032)
+        flip_times.append(win.flip())
     calibration = [b - a for a, b in zip(flip_times, flip_times[1:])]
     frame_s = median(calibration)
     if frame_s <= 0:
@@ -213,27 +238,6 @@ def run(win, logger, seed):
         + round(NBACK["isi_s"] / frame_s),
         note="Backend/flip timestamps do not verify physical audiovisual onset.",
     )
-    message = visual.TextStim(
-        win,
-        height=0.029,
-        wrapWidth=1.15,
-        text=(
-            f'Press {NBACK["visual_key"].upper()} only when the LOCATION matches N trials back.\n'
-            f'Press {NBACK["auditory_key"].upper()} only when the spoken LETTER matches N trials back.\n'
-            "If BOTH match, press BOTH keys. If neither matches, press nothing.\n\n"
-            f'Respond any time within {ASSUMPTIONS["response_window_s"]:g} seconds of onset.\n'
-            "Correct / Incorrect feedback appears when you press a response key.\n"
-            "The next trial starts on schedule, regardless of your response.\n"
-            "The first N presentations are memory warm-up trials.\n\nSPACE: start | ESC: quit"
-        ),
-    )
-    message.draw()
-    win.flip()
-    if any(
-        k.name == "escape"
-        for k in kb.waitKeys(keyList=["space", "escape"], waitRelease=False)
-    ):
-        raise KeyboardInterrupt
     n = ASSUMPTIONS["start_n"]
     for block in range(1, NBACK["blocks"] + 1):
         block_seed = seed + block
@@ -258,6 +262,9 @@ def run(win, logger, seed):
             seed=block_seed,
             trials=[asdict(t) for t in trials],
         )
+        if block == 1:
+            screens.countdown(kb, n, block, frame_s)
+        win.color = NBACK_UI["background"]
         records, errors = run_block(
             win, kb, shapes, feedback, audio, trials, n, block, logger, frame_s
         )
@@ -270,21 +277,16 @@ def run(win, logger, seed):
             increase_below=NBACK["increase_below_errors"],
             decrease_above=NBACK["decrease_above_errors"],
         )
-        logger.write("block_summary", block=block, n=n, next_n=next_n, errors=errors)
-        key_map = {NBACK["visual_key"]: "visual", NBACK["auditory_key"]: "auditory"}
-        final_result = completed_feedback(trials[-1], records[-1], key_map)
-        message.text = (
-            f'Block {block}/{NBACK["blocks"]} complete\n'
-            f'Visual errors: {errors["visual"]} | Auditory errors: {errors["auditory"]}\n'
-            f"Last trial:\n{final_result}\n\nNext N: {next_n}\nSPACE: continue | ESC: quit"
-        )
-        message.draw()
-        win.flip()
-        if any(
-            k.name == "escape"
-            for k in kb.waitKeys(keyList=["space", "escape"], waitRelease=False)
-        ):
-            raise KeyboardInterrupt
+        total = sum(record["complete"] and (not trial.warmup or ASSUMPTIONS["score_warmup"])
+                    for trial, record in zip(trials, records))
+        logger.write("block_summary", block=block, n=n, next_n=next_n, errors=errors,
+                     statistics=nback_summary(errors, total))
+        if block == NBACK["blocks"]:
+            screens.completion(kb, block, n, errors, total=total)
+        else:
+            rest_elapsed = screens.inter_block_rest(kb, block, n, next_n, errors, total=total)
+            logger.write("block_rest", block=block,
+                         planned_s=NBACK_UI["inter_block_rest_s"], elapsed_s=rest_elapsed)
         n = next_n
     audio.stop()
 

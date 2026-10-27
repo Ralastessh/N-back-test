@@ -1,4 +1,5 @@
 import json
+import csv
 import tempfile
 import unittest
 from utils.sequence import generate_block
@@ -56,6 +57,8 @@ class ScoringTests(unittest.TestCase):
             (5, 5, 2),
             (6, 0, 1),
             (0, 6, 1),
+            (2, 6, 1),
+            (6, 2, 1),
             (2, 3, 2),
         ]:
             self.assertEqual(
@@ -71,11 +74,29 @@ class ScoringTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             a = DataLogger(directory, "test", "dual_nback", "training", {})
             b = DataLogger(directory, "test", "dual_nback", "training", {})
-            a.write("trial", rt=0.2)
+            from tests.test_data_logging import trial
+            a.write("trial", **trial())
             a.close()
             b.close()
             self.assertNotEqual(a.path, b.path)
-            self.assertEqual(json.loads(a.path.read_text().splitlines()[1])["rt"], 0.2)
+            with a.path.open(encoding="utf-8-sig", newline="") as handle:
+                self.assertEqual(list(csv.DictReader(handle))[0]["n"], "2")
+
+
+class NbackSummaryTests(unittest.TestCase):
+    def test_overall_accuracy_is_per_modality(self):
+        from utils.scoring import nback_summary
+        result = nback_summary(dict(visual=2, auditory=5), 20)
+        self.assertEqual(result["visual"], dict(correct=18, incorrect=2, total=20, accuracy=.9))
+        self.assertEqual(result["auditory"]["accuracy"], .75)
+        self.assertEqual(nback_summary(dict(visual=0, auditory=20), 20)["auditory"]["correct"], 0)
+
+    def test_warmup_scored_total_and_invalid_counts(self):
+        from utils.scoring import nback_summary
+        self.assertEqual(nback_summary(dict(visual=2), 22)["visual"]["correct"], 20)
+        for errors, total in ((dict(visual=0), 0), (dict(visual=21), 20), (dict(visual=-1), 20)):
+            with self.assertRaises(ValueError):
+                nback_summary(errors, total)
 
 
 if __name__ == "__main__":

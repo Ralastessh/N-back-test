@@ -61,40 +61,43 @@ class AuditoryStimuli:
         for item in self.block_sounds:
             item.stop()
 
-    def check(self, win, kb, logger):
-        """본검사 전 실제 청취 확인. 무음 상태에서 시각 과제만 진행하지 않는다."""
-        from psychopy import core, visual, gui
+    def check(self, win, kb, logger, screens=None):
+        """SPACE로 재생을 건너뛸 수 있다. 건너뜀은 청취 확인과 구분해 기록한다."""
+        from psychopy import core, gui
 
         if not self.settings["check_before_session"]:
             logger.write(
                 "audio_check", confirmed=False, skipped=True, device=self.speaker.name
             )
             return
-        message = visual.TextStim(win, height=0.03, wrapWidth=1.1)
+        from stimuli.nback_ui import ParticipantScreens
+
+        screens = screens or ParticipantScreens(win)
         while True:
+            kb.clearEvents()
             self.prepare_block(self.consonants)
             for i, letter in enumerate(self.consonants):
-                message.text = f"Audio check: {letter}\nOutput: {self.speaker.name}\nListen for the spoken letter. ESC: quit"
                 when = win.getFutureFlipTime(clock="ptb", targetTime=0.1)
                 self.schedule(i, when)
                 clock = core.Clock()
                 while clock.getTime() < 0.8:
-                    if kb.getKeys(keyList=["escape"], waitRelease=False):
+                    keys = kb.getKeys(keyList=["space", "escape"], waitRelease=False)
+                    if any(key.name == "escape" for key in keys):
                         self.stop()
                         raise KeyboardInterrupt
-                    message.draw()
+                    if any(key.name == "space" for key in keys):
+                        self.stop()
+                        logger.write(
+                            "audio_check", confirmed=False, skipped=True,
+                            reason="participant_space", device=self.speaker.name,
+                            letters_started=i + 1, total_letters=len(self.consonants),
+                        )
+                        return
+                    screens.draw_audio(letter, i)
                     win.flip()
             self.stop()
-            message.text = (
-                f"Audio output: {self.speaker.name}\n\n"
-                "Did you hear all eight spoken letters?\n"
-                "SPACE: yes, continue\nR: replay\nD: choose output device\nESC: quit"
-            )
-            message.draw()
-            win.flip()
-            key = kb.waitKeys(keyList=["space", "r", "d", "escape"], waitRelease=False)[
-                0
-            ].name
+            key = screens.wait(kb, screens.draw_audio,
+                               keys=("space", "r", "d", "escape"))
             if key == "escape":
                 raise KeyboardInterrupt
             if key == "space":

@@ -15,7 +15,9 @@ class VisualStimuli:
             fillColor=settings["square_color"],
             lineColor=settings["square_color"],
         )
-        self.fixation = visual.TextStim(win, text="+", height=0.035)
+        from stimuli.text import SharpText
+        self.fixation = SharpText(win, text="+", height=0.035, color="#ACBDD3")
+        self.fixation.prepare()
 
     def draw(self, position=None):
         self.fixation.draw()
@@ -30,20 +32,31 @@ class FeedbackDisplay:
 
     def __init__(self, win):
         from psychopy import visual
+        from config import NBACK_UI, NBACK
+        from stimuli.text import SharpText
 
-        self.header = visual.TextStim(win, height=0.025, pos=(0, 0.43), wrapWidth=1.2)
-        self.visual = visual.TextStim(
-            win, height=0.022, pos=(-0.30, -0.35), wrapWidth=0.60
-        )
-        self.auditory = visual.TextStim(
-            win, height=0.022, pos=(0.30, -0.35), wrapWidth=0.60
-        )
-        self.previous = visual.TextStim(
-            win, height=0.018, pos=(0, -0.44), wrapWidth=1.25
-        )
+        self.theme = NBACK_UI
+        self.header = SharpText(
+            win, height=0.038, pos=(0, 0.425), wrapWidth=1.2, autoLog=False)
+        y = self.theme["feedback_y"]
+        self.panels = [visual.Rect(
+            win, width=0.55, height=self.theme["feedback_panel_height"], pos=(x, y),
+            fillColor=self.theme["panel"], lineColor=self.theme["border"], autoLog=False
+        ) for x in (-0.30, 0.30)]
+        self.labels = [SharpText(
+            win, text=f"{NBACK[key].upper()}  /  {label}", height=0.026,
+            pos=(x, y + 0.040), color=self.theme["muted"], autoLog=False
+        ) for x, key, label in ((-.30, "visual_key", "Visual"), (.30, "auditory_key", "Auditory"))]
+        self.visual = SharpText(
+            win, height=self.theme["feedback_height"], pos=(-0.30, y - 0.020),
+            wrapWidth=0.53, autoLog=False)
+        self.auditory = SharpText(
+            win, height=self.theme["feedback_height"], pos=(0.30, y - 0.020),
+            wrapWidth=0.53, autoLog=False)
         self.cache = {}
 
-    def update(self, stimulus, text, color="white"):
+    def update(self, stimulus, text, color=None):
+        color = color or self.theme["text"]
         value = (text, color)
         if self.cache.get(id(stimulus)) != value:
             stimulus.text = text
@@ -52,14 +65,23 @@ class FeedbackDisplay:
         if text:
             stimulus.draw()
 
-    def draw(self, header, current, previous=""):
+    def prepare(self, headers):
+        for text in headers:
+            self.header.prepare(text, self.theme["text"])
+        for stimulus in (self.visual, self.auditory):
+            stimulus.prepare("Correct", self.theme["correct"])
+            stimulus.prepare("Incorrect", self.theme["incorrect"])
+        for label in self.labels:
+            label.prepare(label.text, self.theme["muted"])
+
+    def draw(self, header, current, completed=None):
+        completed = completed or {}
         self.update(self.header, header)
-        for modality in ("visual", "auditory"):
-            text = current.get(modality, "")
-            color = "lime" if text.startswith("Correct") else "salmon"
-            self.update(
-                getattr(self, modality),
-                f"{modality.title()}: {text}" if text else "",
-                color,
-            )
-        self.update(self.previous, previous)
+        for modality, panel, label in zip(
+            ("visual", "auditory"), self.panels, self.labels
+        ):
+            panel.draw()
+            label.draw()
+            result = current.get(modality, completed.get(modality, ""))
+            color = self.theme["correct"] if result == "Correct" else self.theme["incorrect"]
+            self.update(getattr(self, modality), result, color)

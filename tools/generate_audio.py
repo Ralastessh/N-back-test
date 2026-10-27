@@ -17,7 +17,8 @@ def generate():
     manifest = []
     sample_rate = AUDIO_GENERATION["sample_rate"]
     jobs = [
-        (letter, letter, AUDIO_DIR, AUDIO_GENERATION["nback_file_s"])
+        (letter, AUDIO_GENERATION["letter_names"][letter], AUDIO_DIR,
+         AUDIO_GENERATION["nback_file_s"])
         for letter in ASSUMPTIONS["consonants"]
     ]
     names = "one two three four five six seven eight nine".split()
