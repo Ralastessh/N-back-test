@@ -28,7 +28,7 @@ SPAN_COLUMNS = [
 
 
 class DataLogger:
-    def __init__(self, directory, participant, task, phase, metadata):
+    def __init__(self, directory, participant, task, phase):
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         self.stem = f"{task}_{datetime.now(KST):%Y-%m-%d_%H-%M-%S}_{uuid.uuid4().hex[:8]}"
@@ -45,12 +45,10 @@ class DataLogger:
         self.pending = {}
         self.status = "running"
         self.closed = False
-        # 채점에 필요한 행동 조건만 사용하며 전체 metadata는 기록하지 않는다.
+        # CSV에 재채점에 필요한 키와 응답 창을 함께 남긴다.
         from config import NBACK, ASSUMPTIONS
-        settings = metadata.get("paper", NBACK)
-        assumptions = metadata.get("assumptions", ASSUMPTIONS)
-        self.behavior = dict(visual_key=settings["visual_key"], auditory_key=settings["auditory_key"],
-                             response_window_s=assumptions["response_window_s"])
+        self.behavior = dict(visual_key=NBACK["visual_key"], auditory_key=NBACK["auditory_key"],
+                             response_window_s=ASSUMPTIONS["response_window_s"])
         self._rewrite()
 
     def _rewrite(self):

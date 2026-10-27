@@ -1,35 +1,127 @@
-"""Coder에서 이 파일을 실행. 터미널에서는 --task로 과제 선택."""
+"""참가자 등록 → 선택한 검사 → 다음 단계 제안 → 종료·저장을 관리한다."""
 
 import argparse
+import csv
+import re
+from datetime import datetime, timezone
+from pathlib import Path
 import importlib
-import platform
 import secrets
 import hashlib
-import sys
-from config import (
-    ROOT,
-    PROTOCOL_VERSION,
-    DATA_DIR,
-    DISPLAY,
-    NBACK,
-    ASSUMPTIONS,
-    AUDIO_DIR,
-    AUDIO_GENERATION,
-    AUDIO_PLAYBACK,
-    NBACK_FEEDBACK,
-    NBACK_UI,
-    DIGIT_SPAN,
-    READING_SPAN,
-    require_decisions,
-    PARTICIPANT_EMAIL_DOMAIN,
-)
-from utils.data_logger import DataLogger
-from utils.participant import normalize_hanyang_email
+from config import DATA_DIR, DISPLAY, NBACK_UI, PARTICIPANT_EMAIL_DOMAIN
+from utils.data_logger import DataLogger, KST
 from utils.native_window import enable_native_fullscreen
-from utils.workflow import (
-    ask_continue, choose_posttest_task, latest_completed_pretest, next_step,
-    SPAN_TASKS,
-)
+
+
+_LOCAL = re.compile(r"[a-z0-9][a-z0-9._%+-]*\Z", re.ASCII)
+
+
+def normalize_hanyang_email(value):
+    """입력한 이메일을 참가자 ID로 쓴다. 실제 계정 소유 확인은 하지 않는다."""
+    email = str(value or "").strip().lower()
+    local, separator, domain = email.partition("@")
+    if (
+        not separator
+        or domain != PARTICIPANT_EMAIL_DOMAIN
+        or len(local) > 64
+        or len(email) > 254
+        or not _LOCAL.fullmatch(local)
+        or local.endswith(".")
+        or ".." in local
+    ):
+        raise ValueError(f"Enter your Hanyang University email (@{PARTICIPANT_EMAIL_DOMAIN}).")
+    return email
+
+
+SPAN_TASKS = ("digit_span", "reading_span")
+TASK_LABELS = {
+    "digit_span": "Digit Span",
+    "reading_span": "Reading Span",
+    "dual_nback": "Dual N-back",
+}
+
+
+def latest_completed_pretest(directory, participant):
+    """이메일이 같은 완료된 Pretest 중 가장 최근에 시작한 Span 검사."""
+    candidates = []
+    for path in Path(directory).glob("*_responses.csv"):
+        try:
+            with path.open(encoding="utf-8-sig", newline="") as handle:
+                row = next(csv.DictReader(handle), None)
+        except (OSError, UnicodeError, csv.Error):
+            continue
+        if (row and row.get("participant") == participant
+                and row.get("phase") == "pretest"
+                and row.get("task") in SPAN_TASKS
+                and row.get("session_status") == "completed"):
+            try:
+                when = (datetime.strptime(row["recorded_kst"], "%Y-%m-%d %H:%M:%S")
+                        .replace(tzinfo=KST) if row.get("recorded_kst") else
+                        datetime.fromisoformat(row["recorded_utc"]))
+                candidates.append((when.astimezone(timezone.utc), row["task"]))
+            except (KeyError, ValueError):
+                continue
+    return max(candidates)[1] if candidates else None
+
+
+def next_step(task, phase, selected_span):
+    """완료된 단계의 다음 제안. 검사 하나만 선택한 Pre/Post 흐름."""
+    if phase == "pretest" and task in SPAN_TASKS:
+        return "dual_nback", "training"
+    if task == "dual_nback" and phase == "training":
+        return selected_span, "posttest"
+    return None
+
+
+def _choice(win, title, choices):
+    from psychopy import visual
+    from psychopy.hardware import keyboard
+
+    kb = keyboard.Keyboard()
+
+    def draw():
+        win.color = "#FFFFFF"
+        visual.Rect(win, width=3, height=3, fillColor="#FFFFFF",
+                    lineColor="#FFFFFF").draw()
+        visual.Rect(win, width=3, height=.12, pos=(0, .44),
+                    fillColor="#292D32", lineColor="#292D32").draw()
+        visual.TextStim(win, text="DUAL-N-BACK STUDY", color="#FFFFFF",
+                        height=.035, pos=(0, .44)).draw()
+        visual.TextStim(win, text=title, color="#292D32", height=.047,
+                        wrapWidth=1.15, pos=(0, .09)).draw()
+        width = min(.34, 1.18 / len(choices) - .02)
+        for index, label in enumerate(choices.values()):
+            x = (index - (len(choices) - 1) / 2) * (width + .02)
+            visual.Rect(win, width=width, height=.085, pos=(x, -.23),
+                        fillColor="#F3F4F3", lineColor="#DCE0DD").draw()
+            visual.TextStim(win, text=label, color="#292D32", height=.020,
+                            wrapWidth=width - .01, pos=(x, -.23)).draw()
+    win._resize_draw = draw
+    try:
+        draw()
+        win.callOnFlip(kb.clearEvents)
+        win.flip()
+        key = kb.waitKeys(keyList=list(choices), waitRelease=False)[0].name
+        return key
+    finally:
+        win._resize_draw = None
+
+
+def ask_continue(win, task, phase, next_task, next_phase):
+    destination = TASK_LABELS[next_task] if next_task else "your chosen Span task"
+    title = (f"{TASK_LABELS[task]} {phase.title()} complete.\n"
+             f"Continue to {destination} {next_phase.title()}?")
+    return _choice(win, title, {
+        "space": "SPACE  Continue", "n": "N  Finish"
+    }) == "space"
+
+
+def choose_posttest_task(win):
+    """Training만 단독 실행했을 때 대응할 Posttest 검사를 참가자가 고른다."""
+    key = _choice(win, "Choose the Posttest task.", {
+        "d": "D  Digit Span", "r": "R  Reading Span", "n": "N  Finish",
+    })
+    return {"d": "digit_span", "r": "reading_span"}.get(key)
 
 
 def task_phase_error(task, phase):
@@ -60,7 +152,7 @@ def main(default_task=None):
     from psychopy import prefs
 
     prefs.hardware["audioLib"] = ["ptb", "PTB"]
-    from psychopy import gui, visual, __version__
+    from psychopy import gui, visual
 
     tasks = ("dual_nback", "digit_span", "reading_span")
     phases = ("training", "pretest", "posttest")
@@ -91,7 +183,6 @@ def main(default_task=None):
         warning.addText(message)
         warning.show()
         show_selection = True
-    info["participant"] = email
     task, phase = info["task"], info["phase"]
     selected_span = (task if task in SPAN_TASKS else
                      latest_completed_pretest(DATA_DIR, email))
@@ -99,7 +190,6 @@ def main(default_task=None):
     participant_seed = int.from_bytes(
         hashlib.sha256(email.encode()).digest()[:8], "big"
     )
-    digit_mode = "forward"
     display_settings = dict(DISPLAY, fullscr=(
         DISPLAY["fullscr"] if args.fullscreen is None else args.fullscreen
     ))
@@ -112,54 +202,21 @@ def main(default_task=None):
         )
         enable_native_fullscreen(win)
         while True:
-            settings = {
-                "dual_nback": ASSUMPTIONS,
-                "digit_span": DIGIT_SPAN,
-                "reading_span": READING_SPAN,
-            }[task]
-            require_decisions(settings, task)
             seed = (args.seed if args.seed is not None else
                     secrets.randbits(32) if task == "dual_nback" else participant_seed)
-            logger = DataLogger(
-                DATA_DIR, email, task, phase,
-                dict(
-                    seed=seed,
-                    protocol_version=PROTOCOL_VERSION,
-                    psychopy=__version__,
-                    python=sys.version,
-                    platform=platform.platform(),
-                    paper=NBACK,
-                    assumptions=ASSUMPTIONS,
-                    audio_generation=AUDIO_GENERATION,
-                    audio_playback=AUDIO_PLAYBACK,
-                    nback_feedback=NBACK_FEEDBACK,
-                    nback_ui=NBACK_UI,
-                    stimulus_hashes={
-                        str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-                        for path in list(AUDIO_DIR.rglob("*.wav"))
-                        + [ROOT / READING_SPAN["sentence_file"]]
-                        if path.is_file()
-                    },
-                    display=display_settings,
-                    digit_span=DIGIT_SPAN,
-                    reading_span=READING_SPAN,
-                    mode=digit_mode if task == "digit_span" else None,
-                ),
-            )
+            logger = DataLogger(DATA_DIR, email, task, phase)
             completed = False
             try:
                 win.color = NBACK_UI["background"] if task == "dual_nback" else DISPLAY["color"]
-                logger.write("display_runtime", fullscr=win.fullscr,
-                             framebuffer_pixels=list(map(int, win.size)), use_retina=win.useRetina)
                 module = importlib.import_module("tasks." + task)
-                kwargs = dict(mode=digit_mode) if task == "digit_span" else {}
+                kwargs = dict(mode="forward") if task == "digit_span" else {}
                 module.run(win, logger, seed, **kwargs)
                 logger.write("session_end", status="completed")
                 completed = True
             except KeyboardInterrupt:
                 logger.write("session_end", status="aborted")
-            except Exception as error:
-                logger.write("session_end", status="error", error=repr(error))
+            except Exception:
+                logger.write("session_end", status="error")
                 raise
             finally:
                 logger.close()
@@ -178,6 +235,7 @@ def main(default_task=None):
                 selected_span = task
     finally:
         if win is not None:
+            win._resize_draw = None
             win.close()
 
 

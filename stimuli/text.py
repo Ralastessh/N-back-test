@@ -6,7 +6,7 @@ from math import ceil
 class SharpText:
     """N-back용 중앙 정렬 텍스트. PsychoPy ImageStim에 네이티브 픽셀 텍스처 전달."""
     def __init__(self, win, text="", pos=(0, 0), height=.03, color="white",
-                 wrapWidth=1.1, **kwargs):
+                 wrapWidth=1.1):
         from config import NBACK_UI
         self.win = win
         self.text, self.pos, self.height = text, pos, height

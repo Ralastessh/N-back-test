@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-PROTOCOL_VERSION = "2026-10-27-kst-timestamps-v15"
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 # USER: 참가자 구분을 위해 입력받는 한양대학교 계정의 이메일 도메인.
@@ -30,7 +29,6 @@ ASSUMPTIONS = dict(
     score_warmup=False,
     response_window_s=3.0,
     consonants=tuple("BFHJMQRW"),
-    audio_source="macOS say Samantha English",
 )
 # USER modification: immediate per-modality feedback, without pausing trials.
 NBACK_FEEDBACK = dict(enabled=True)
@@ -67,7 +65,6 @@ NBACK_UI = dict(
     border="#2C405B",
     text="#EDF4FF",
     muted="#ACBDD3",
-    accent="#65AEFF",
     correct="#7EE0B8",
     incorrect="#FFB89E",
     feedback_height=0.044,
@@ -96,7 +93,6 @@ DIGIT_SPAN = dict(
     presentation="auditory",
     practice_trials=2,
     audio_subdir="digits",
-    audio_source="macOS say Samantha English",
 )
 # USER: 사용자 지정 Reading Span. 승인되지 않은 문항은 실행 불가.
 READING_SPAN = dict(
@@ -116,11 +112,3 @@ READING_SPAN = dict(
     false_key="n",
     early_stopping=False,
 )
-
-
-def require_decisions(settings, label):
-    missing = [k for k, v in settings.items() if v is None]
-    if missing:
-        raise ValueError(
-            f"{label}: researcher settings required: " + ", ".join(missing)
-        )

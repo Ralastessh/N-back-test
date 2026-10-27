@@ -4,18 +4,18 @@ import wave
 
 
 class AuditoryStimuli:
-    def __init__(self, directory, consonants, max_duration=0.5, settings=None):
+    def __init__(self, directory, consonants, max_duration=0.5):
         from config import AUDIO_PLAYBACK
 
         # PTB를 명시적으로 선택해 조용히 다른 backend로 바뀌는 것을 방지한다.
-        from psychopy.sound.backend_ptb import SoundPTB
+        from psychopy import sound
         from psychopy.hardware.speaker.speaker_psychtoolbox import (
             PsychtoolboxSpeakerDevice,
         )
 
-        self.Sound = SoundPTB
+        sound.Sound.backend = "ptb"
         self.Speaker = PsychtoolboxSpeakerDevice
-        self.settings = settings or AUDIO_PLAYBACK
+        self.settings = AUDIO_PLAYBACK
         self.directory = directory
         self.consonants = consonants
         self.block_sounds = []
@@ -28,9 +28,11 @@ class AuditoryStimuli:
         self.speaker = self.Speaker(name=self.settings["device_name"])
 
     def prepare_block(self, letters):
+        from psychopy import sound
+
         self.stop()
         self.block_sounds = [
-            self.Sound(
+            sound.Sound(
                 str(self.directory / f"{letter}.wav"),
                 preBuffer=-1,
                 speaker=self.speaker,
@@ -43,36 +45,16 @@ class AuditoryStimuli:
     def schedule(self, trial_index, when):
         self.block_sounds[trial_index].play(when=when)
 
-    def status(self, trial_index):
-        raw = self.block_sounds[trial_index].statusDetailed or {}
-        return {
-            key: raw.get(key)
-            for key in (
-                "Active",
-                "State",
-                "RequestedStartTime",
-                "StartTime",
-                "StopTime",
-                "XRuns",
-            )
-        }
-
     def stop(self):
         for item in self.block_sounds:
             item.stop()
 
-    def check(self, win, kb, logger, screens=None):
-        """SPACE로 재생을 건너뛸 수 있다. 건너뜀은 청취 확인과 구분해 기록한다."""
+    def check(self, win, kb, screens):
+        """SPACE는 건너뛰기, R은 다시 듣기, D는 출력 장치 변경."""
         from psychopy import core, gui
 
         if not self.settings["check_before_session"]:
-            logger.write(
-                "audio_check", confirmed=False, skipped=True, device=self.speaker.name
-            )
             return
-        from stimuli.nback_ui import ParticipantScreens
-
-        screens = screens or ParticipantScreens(win)
         while True:
             kb.clearEvents()
             self.prepare_block(self.consonants)
@@ -87,26 +69,13 @@ class AuditoryStimuli:
                         raise KeyboardInterrupt
                     if any(key.name == "space" for key in keys):
                         self.stop()
-                        logger.write(
-                            "audio_check", confirmed=False, skipped=True,
-                            reason="participant_space", device=self.speaker.name,
-                            letters_started=i + 1, total_letters=len(self.consonants),
-                        )
                         return
                     screens.draw_audio(letter, i)
                     win.flip()
             self.stop()
             key = screens.wait(kb, screens.draw_audio,
                                keys=("space", "r", "d", "escape"))
-            if key == "escape":
-                raise KeyboardInterrupt
             if key == "space":
-                logger.write(
-                    "audio_check",
-                    confirmed=True,
-                    skipped=False,
-                    device=self.speaker.name,
-                )
                 return
             if key == "d":
                 names = [d["deviceName"] for d in self.Speaker.getAvailableDevices()]

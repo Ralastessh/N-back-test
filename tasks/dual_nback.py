@@ -15,15 +15,13 @@ from config import (
     AUDIO_PLAYBACK,
     NBACK_FEEDBACK,
     NBACK_UI,
-    require_decisions,
 )
 from utils.sequence import generate_block
-from utils.scoring import adapt_n, nback_summary
-from utils.nback_response import (
+from utils.scoring import (
+    adapt_n, nback_summary,
     record_response,
     trial_outcomes,
     current_feedback,
-    OUTCOME_LABELS,
 )
 
 
@@ -41,20 +39,15 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
     records = [
         dict(
             responses=[],
-            feedback_events=[],
             onset=None,
             offset=None,
             complete=False,
-            audio_scheduled_ptb=None,
-            audio_backend={},
         )
         for _ in trials
     ]
     audio.prepare_block([trial.auditory for trial in trials])
-    if hasattr(feedback, "prepare"):
-        feedback.prepare([trial_header(trial, i, n, block) for i, trial in enumerate(trials)])
-    win.frameIntervals = []
-    win.recordFrameIntervals = True
+    # 실행 중 폰트 생성이 프레임을 지연시키지 않도록 문구를 미리 준비한다.
+    feedback.prepare([trial_header(trial, i, n, block) for i, trial in enumerate(trials)])
 
     def collect_keys():
         for key in kb.getKeys(
@@ -62,25 +55,9 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
         ):
             if key.name == "escape":
                 raise KeyboardInterrupt
-            accepted = record_response(
+            record_response(
                 records, key.name, key.rt, key_map, ASSUMPTIONS["response_window_s"]
             )
-            if accepted is not None:
-                index, modality, first = accepted
-                if first:
-                    result = trial_outcomes(trials[index], records[index], key_map)[
-                        modality
-                    ]
-                    records[index]["feedback_events"].append(
-                        dict(
-                            modality=modality,
-                            key=key.name,
-                            rt=result["rt"],
-                            outcome=result["outcome"],
-                            text=OUTCOME_LABELS[result["outcome"]],
-                            display_onset=None,
-                        )
-                    )
 
     try:
         # 음수 프레임: 첫 시청각 자극을 미리 예약하기 위한 준비 구간.
@@ -90,7 +67,6 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
                 upcoming = upcoming_frame // trial_frames
                 if upcoming < len(trials):
                     when = win.getFutureFlipTime(clock="ptb") + lead_frames * frame_s
-                    records[upcoming]["audio_scheduled_ptb"] = when
                     audio.schedule(upcoming, when)
             collect_keys()
             if frame == 0:
@@ -117,17 +93,9 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
                         records[index]["onset"] = relative_flip
                 if index < len(trials) and within == visible_frames:
                     records[index]["offset"] = relative_flip
-                if NBACK_FEEDBACK["enabled"] and index < len(trials):
-                    for event in records[index]["feedback_events"]:
-                        if event["display_onset"] is None:
-                            event["display_onset"] = relative_flip
         # 마지막 시행의 기한 직전 키도 화면 표시 없이 채점에 포함한다.
         collect_keys()
     finally:
-        win.recordFrameIntervals = False
-        for i, record in enumerate(records):
-            if record["onset"] is not None:
-                record["audio_backend"] = audio.status(i)
         audio.stop()
         errors = dict(visual=0, auditory=0)
         for trial, record in zip(trials, records):
@@ -150,17 +118,10 @@ def run_block(win, kb, shapes, feedback, audio, trials, n, block, logger, frame_
                 scored=scored,
                 outcomes=outcomes,
             )
-        logger.write(
-            "frame_intervals",
-            block=block,
-            seconds=list(win.frameIntervals),
-            delayed_frames=sum(x > 1.5 * frame_s for x in win.frameIntervals),
-        )
     return records, errors
 
 
 def run(win, logger, seed):
-    require_decisions(ASSUMPTIONS, "Dual N-back")
     from stimuli.nback_ui import ParticipantScreens
     from psychopy.hardware import keyboard
     from stimuli.visual import VisualStimuli, FeedbackDisplay
@@ -177,7 +138,7 @@ def run(win, logger, seed):
     feedback = FeedbackDisplay(win)
     audio = AuditoryStimuli(AUDIO_DIR, ASSUMPTIONS["consonants"], NBACK["stimulus_s"])
     screens.welcome(kb)
-    audio.check(win, kb, logger, screens=screens)
+    audio.check(win, kb, screens)
     screens.instructions(kb)
     flip_times = []
     for _ in range(121):
@@ -191,17 +152,6 @@ def run(win, logger, seed):
             "Could not measure the display refresh interval. Check VSync."
         )
     win.monitorFramePeriod = frame_s
-    win.refreshThreshold = 1.5 * frame_s
-    logger.write(
-        "timing_setup",
-        hz=1 / frame_s,
-        calibration_intervals=calibration,
-        visible_frames=round(NBACK["stimulus_s"] / frame_s),
-        isi_frames=round(NBACK["isi_s"] / frame_s),
-        trial_frames=round(NBACK["stimulus_s"] / frame_s)
-        + round(NBACK["isi_s"] / frame_s),
-        note="Backend/flip timestamps do not verify physical audiovisual onset.",
-    )
     n = ASSUMPTIONS["start_n"]
     for block in range(1, NBACK["blocks"] + 1):
         block_seed = seed + block
@@ -218,13 +168,6 @@ def run(win, logger, seed):
                     "simultaneous_targets",
                 )
             },
-        )
-        logger.write(
-            "block_start",
-            block=block,
-            n=n,
-            seed=block_seed,
-            trials=[asdict(t) for t in trials],
         )
         if block == 1:
             screens.countdown(kb, n, block, frame_s)
@@ -248,9 +191,7 @@ def run(win, logger, seed):
         if block == NBACK["blocks"]:
             screens.completion(kb, block, n, errors, total=total)
         else:
-            rest_elapsed = screens.inter_block_rest(kb, block, n, next_n, errors, total=total)
-            logger.write("block_rest", block=block,
-                         planned_s=NBACK_UI["inter_block_rest_s"], elapsed_s=rest_elapsed)
+            screens.inter_block_rest(kb, block, n, next_n, errors, total=total)
         n = next_n
     audio.stop()
 

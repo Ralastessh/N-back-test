@@ -20,12 +20,11 @@ class ParticipantScreens:
         color = color or self.theme["flow_text"]
         if name not in self.texts:
             self.texts[name] = SharpText(
-                self.win, autoLog=False, text="", units="height")
+                self.win, text="")
         item = self.texts[name]
         item.pos, item.height, item.wrapWidth = pos, height, width
         item.color = color
-        if item.text != text:
-            item.text = text
+        item.text = text
         item.draw()
 
     def panel(self, name, pos, size, color=None, border=None):
@@ -66,13 +65,17 @@ class ParticipantScreens:
                       "white" if dark else self.theme["flow_text"], width - .01)
 
     def wait(self, kb, renderer, *args, keys=("space", "escape")):
-        renderer(*args)
-        self.win.callOnFlip(kb.clearEvents)
-        self.win.flip()
-        key = kb.waitKeys(keyList=list(keys), waitRelease=False)[0].name
-        if key == "escape":
-            raise KeyboardInterrupt
-        return key
+        self.win._resize_draw = lambda: renderer(*args)
+        try:
+            renderer(*args)
+            self.win.callOnFlip(kb.clearEvents)
+            self.win.flip()
+            key = kb.waitKeys(keyList=list(keys), waitRelease=False)[0].name
+            if key == "escape":
+                raise KeyboardInterrupt
+            return key
+        finally:
+            self.win._resize_draw = None
 
     def draw_welcome(self):
         self.base(0)
