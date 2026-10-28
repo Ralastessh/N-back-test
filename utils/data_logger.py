@@ -1,12 +1,12 @@
-"""참가자의 시행별 자극·반응만 세션당 CSV 하나에 저장한다."""
-
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import csv
 import json
 import uuid
+from config import NBACK, ASSUMPTIONS
+from stimuli.visual import POSITIONS
+from config import DISPLAY
 
-# 시스템·장치·백엔드 설정은 포함하지 않는다.
 KST = timezone(timedelta(hours=9), "KST")
 COMMON = ["session_id", "participant", "task", "phase", "stage", "session_status", "recorded_kst", "event_type"]
 NBACK_COLUMNS = [
@@ -26,7 +26,6 @@ SPAN_COLUMNS = [
     "key_events",
 ]
 
-
 class DataLogger:
     def __init__(self, directory, participant, task, phase):
         directory = Path(directory)
@@ -38,15 +37,14 @@ class DataLogger:
         self.common = dict(session_id=self.stem, participant=participant, task=task, phase=phase)
         self.names = COMMON + (
             NBACK_COLUMNS if task == "dual_nback" else
-            SPAN_COLUMNS + (["material_status"] if task == "reading_span" else [])
+            SPAN_COLUMNS
         )
         self.file = self.path.open("x+", encoding="utf-8-sig", newline="")
+        self.writer = csv.DictWriter(self.file, fieldnames=self.names)
         self.rows = []
         self.pending = {}
         self.status = "running"
         self.closed = False
-        # CSV에 재채점에 필요한 키와 응답 창을 함께 남긴다.
-        from config import NBACK, ASSUMPTIONS
         self.behavior = dict(visual_key=NBACK["visual_key"], auditory_key=NBACK["auditory_key"],
                              response_window_s=ASSUMPTIONS["response_window_s"])
         self._rewrite()
@@ -54,9 +52,8 @@ class DataLogger:
     def _rewrite(self):
         self.file.seek(0)
         self.file.truncate()
-        writer = csv.DictWriter(self.file, fieldnames=self.names)
-        writer.writeheader()
-        writer.writerows(self.rows)
+        self.writer.writeheader()
+        self.writer.writerows(self.rows)
         self.file.flush()
 
     def _append(self, event_type, fields):
@@ -66,7 +63,7 @@ class DataLogger:
         row = {key: (json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list, tuple)) else value)
                for key, value in row.items() if key in self.names}
         self.rows.append(row)
-        csv.DictWriter(self.file, fieldnames=self.names).writerow(row)
+        self.writer.writerow(row)
         self.file.flush()
 
     def write(self, kind, **fields):
@@ -75,7 +72,6 @@ class DataLogger:
         if kind == "trial" and self.task == "dual_nback":
             self._nback_trial(fields)
         elif kind == "block_summary" and self.task == "dual_nback":
-            # 별도 요약 행/파일 없이 해당 블록의 시행 행들에 정확도를 붙인다.
             for row in self.rows:
                 if row.get("block") != fields["block"]:
                     continue
@@ -93,11 +89,8 @@ class DataLogger:
             self._span_row(kind, fields)
         elif kind == "session_end":
             self._finish(fields.get("status", "unknown"))
-        # session/settings/frame/audio/summary 등 비반응 이벤트는 저장하지 않는다.
 
     def _nback_trial(self, fields):
-        from stimuli.visual import POSITIONS
-        from config import DISPLAY
         x, y = POSITIONS[fields["visual"]]
         responses = fields.get("responses", [])
         complete = fields["complete"]
@@ -131,7 +124,6 @@ class DataLogger:
         self._append(kind, row)
 
     def _finish(self, status):
-        # 중단된 Span 자극도 응답이 완료된 시행과 구분해 남긴다.
         for kind, fields in self.pending.values():
             self._span_row(kind + "_incomplete", fields)
         self.pending.clear()

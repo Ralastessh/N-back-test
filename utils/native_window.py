@@ -1,7 +1,5 @@
-"""macOS 기본 전체화면 버튼과 PsychoPy의 화면 크기를 함께 관리한다."""
-
 import sys
-
+from pyglet.libs.darwin import cocoapy
 
 def enable_native_fullscreen(win):
     if sys.platform != "darwin" or win.fullscr:
@@ -9,10 +7,7 @@ def enable_native_fullscreen(win):
     if win.winType != "pyglet":
         raise RuntimeError("Native macOS fullscreen requires PsychoPy's pyglet backend.")
 
-    from pyglet.libs.darwin import cocoapy
-
     handle = win.backend.winHandle
-    # pyglet가 소유한 창을 그대로 사용하고 다른 Objective-C wrapper로 감싸지 않는다.
     native = handle._nswindow
     native.setStyleMask_(native.styleMask() | cocoapy.NSResizableWindowMask)
     native.setCollectionBehavior_(
@@ -20,9 +15,6 @@ def enable_native_fullscreen(win):
     )
     native.standardWindowButton_(2).setEnabled_(True)  # NSWindowZoomButton
     handle._resizable = True
-
-    # resize 콜백은 새 크기만 보관한다. 그릴 준비가 된 GL context에서 반영하여
-    # 전체화면 전환 중 일시적인 0 크기와 framebuffer 불일치를 피한다.
     pending_size = None
     original_set_current = win.backend.setCurrent
 
@@ -59,7 +51,6 @@ def enable_native_fullscreen(win):
 
     def on_expose():
         if draw_waiting_screen():
-            # 크기 변경 후 다시 그릴 때 RT clock과 flip callback은 실행하지 않는다.
             handle.flip()
         return True
 

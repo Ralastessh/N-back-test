@@ -4,4 +4,3 @@
 psychopy==2026.2.4
 psychtoolbox>=3.0.19
 Pillow>=9.1
-# 핵심 테스트는 Python 표준 라이브러리 unittest만 사용합니다.

@@ -1,7 +1,8 @@
-"""그리기만 담당. 시간·반응·flip은 tasks에서 관리."""
+from psychopy import visual
+from config import NBACK_UI, NBACK
+from stimuli.text import SharpText
 
 POSITIONS = [(-1, 1), (0, 1), (1, 1), (-1, 0), (1, 0), (-1, -1), (0, -1), (1, -1)]
-
 
 class VisualStimuli:
     def __init__(self, win, settings):
@@ -11,13 +12,7 @@ class VisualStimuli:
         self.frame_size = None
         self.spacing = settings["spacing"]
         self.square_size = settings["square_size"]
-        self.square = visual.Rect(
-            win,
-            width=settings["square_size"],
-            height=settings["square_size"],
-            fillColor=settings["square_color"],
-            lineColor=settings["square_color"],
-        )
+        self.square = visual.Rect(win, width=settings["square_size"], height=settings["square_size"], fillColor=settings["square_color"], lineColor=settings["square_color"])
         from stimuli.text import SharpText
         self.fixation = SharpText(win, text="+", height=0.035, color="#ACBDD3")
         self.fixation.prepare()
@@ -26,7 +21,6 @@ class VisualStimuli:
         self.fixation.draw()
         frame_size = tuple(self.win.size)
         if frame_size != self.frame_size:
-            # 원래 height 단위 크기를 현재 화면의 픽셀 크기로 다시 변환한다.
             self.square.size = (self.square_size, self.square_size)
             self.frame_size = frame_size
         if position is not None:
@@ -34,15 +28,8 @@ class VisualStimuli:
             self.square.pos = (x * self.spacing, y * self.spacing)
             self.square.draw()
 
-
 class FeedbackDisplay:
-    """하단 피드백만 그린다. wait/flip을 호출하지 않아 시행 일정을 바꾸지 않는다."""
-
     def __init__(self, win):
-        from psychopy import visual
-        from config import NBACK_UI, NBACK
-        from stimuli.text import SharpText
-
         self.win = win
         self.frame_size = None
         self.theme = NBACK_UI
@@ -79,7 +66,6 @@ class FeedbackDisplay:
         self.header.draw()
         frame_size = tuple(self.win.size)
         if frame_size != self.frame_size:
-            # 고정된 박스도 글자와 같은 화면 크기를 사용해야 서로 어긋나지 않는다.
             for panel, x in zip(self.panels, (-0.30, 0.30)):
                 panel.pos = (x, self.theme["feedback_y"])
                 panel.size = (0.55, self.theme["feedback_panel_height"])
