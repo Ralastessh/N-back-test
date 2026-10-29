@@ -23,8 +23,11 @@ SPAN_COLUMNS = [
     "trial_number", "mode", "length", "form", "attempt", "set_id", "item_id",
     "stimuli", "sentence", "recall_word", "expected", "response", "rt_s",
     "correct", "timed_out", "timeout_s", "items_correct", "items_total", "accuracy", "exact",
-    "key_events",
+    "key_events", "random_seed",
 ]
+MATRIX_COLUMNS = ["trial_number", "form", "item_id", "stimuli", "expected", "response",
+              "rt_s", "onset_s", "correct", "outcome", "timed_out", "timeout_s",
+              "raw_score", "items_total", "answered", "elapsed_s", "end_reason"]
 
 class DataLogger:
     def __init__(self, directory, participant, task, phase):
@@ -37,6 +40,7 @@ class DataLogger:
         self.common = dict(session_id=self.stem, participant=participant, task=task, phase=phase)
         self.names = COMMON + (
             NBACK_COLUMNS if task == "dual_nback" else
+            MATRIX_COLUMNS if task in ("rapm", "bomat") else
             SPAN_COLUMNS
         )
         self.file = self.path.open("x+", encoding="utf-8-sig", newline="")
@@ -82,11 +86,13 @@ class DataLogger:
                     row[f"block_{modality}_incorrect"] = stats["incorrect"]
                     row[f"block_{modality}_accuracy_pct"] = stats["accuracy"] * 100
             self._rewrite()
-        elif kind in {"digit_trial_start", "sentence_start"} and self.task != "dual_nback":
+        elif kind in {"digit_trial_start", "sentence_start", "gf_trial_start"} and self.task != "dual_nback":
             self.pending[self._span_id(fields)] = (kind, dict(fields))
-        elif kind in {"digit_trial", "sentence_judgment", "reading_recall"} and self.task != "dual_nback":
+        elif kind in {"digit_trial", "sentence_judgment", "reading_recall", "gf_trial"} and self.task != "dual_nback":
             self.pending.pop(self._span_id(fields), None)
             self._span_row(kind, fields)
+        elif kind == "gf_summary" and self.task in ("rapm", "bomat"):
+            self._append(kind, fields)
         elif kind == "session_end":
             self._finish(fields.get("status", "unknown"))
 

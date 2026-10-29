@@ -32,6 +32,7 @@ def digit_plans(seed, settings):
             used.add(key)
             sequences.append(digits)
         # 실제 실험에 사용할 숫자열을 plans에 저장
+        rng.shuffle(sequences)
         plans[phase] = sequences
     return plans
 
@@ -61,7 +62,7 @@ def draw_screen(screens, state, response=(), progress=""):
         screens.text("digit_intro_note", "Listen to the numbers, then type them in the same order.",
                      (0, .035), .027, muted, 1.0)
         screens.panel("digit_intro_card", (0, -.11), (1.08, .13), theme["flow_panel"])
-        screens.text("digit_intro_tip", "Wait until the sound ends before typing.",
+        screens.text("digit_intro_tip", f"{len(DIGIT_SPAN['lengths']) * DIGIT_SPAN['trials_per_length']} sequences. Wait until the sound ends before typing.",
                      (0, -.11), .024, ink)
         screens.panel("digit_begin", (0, -.29), (.46, .075), accent)
         screens.text("digit_begin_text", "SPACE   Begin", (0, -.29), .025, "white")
@@ -157,8 +158,6 @@ def run(win, logger, seed):
 
     try:
         screens.wait(kb, draw_screen, screens, "ready")
-        failed = 0
-        previous = None
 
         # Pretest와 Posttest에서 서로 다른 숫자열 사용
         sequences = plans[logger.phase]
@@ -166,13 +165,8 @@ def run(win, logger, seed):
         for trial_index, digits in enumerate(sequences):
             length = len(digits)
 
-            # 숫자 길이가 바뀌면 이전 길이에서의 실패 횟수 초기화
-            if length != previous:
-                failed = 0
-            previous = length
-
             # 실제 제시할 숫자열을 미리 기록하여 중단된 시행도 추적 가능하게 함
-            trial_info = dict(stage="test", mode="forward",
+            trial_info = dict(stage="test", mode="forward", random_seed=seed,
                               trial_index=trial_index, stimuli=digits)
             logger.write("digit_trial_start", **trial_info)
             
@@ -204,12 +198,6 @@ def run(win, logger, seed):
 
             # 숫자 길이, 정답, 응답, RT, 정확도를 모두 기록
             logger.write("digit_trial", **trial_info, length=length, expected=digits, response=recalled, rt=rt, key_events=key_events, **score)
-            # 숫자열을 정확히 회상하지 못한 경우 실패 횟수 증가
-            failed += not score["exact"]
-
-            # 동일한 길이에서 설정된 실패 횟수에 도달하면 검사 종료
-            if failed >= DIGIT_SPAN["stop_failed_sets"]:
-                break
     finally:
         # 실험이 중단되더라도 화면 설정과 오디오를 정리
         win._resize_draw = None

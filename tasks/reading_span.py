@@ -101,7 +101,7 @@ def draw_screen(screens, state, progress="", sentence="", entry=None):
         screens.text("reading_note", "Decide whether each sentence makes sense.\nRemember the final words in order.",
                      (0, .04), .027, muted, 1.05)
         screens.panel("reading_tip_card", (0, -.12), (1.08, .14), theme["flow_panel"])
-        screens.text("reading_tip", f"{READING_SPAN['sentence_timeout_s']:g} seconds per sentence.\nThen type the final words in the same order.",
+        screens.text("reading_tip", f"{len(READING_SPAN['lengths']) * READING_SPAN['sets_per_size']} sets. {READING_SPAN['sentence_timeout_s']:g} seconds per sentence.\nThen type the final words in the same order.",
                      (0, -.12), .025, ink, 1.0)
         screens.panel("reading_begin", (0, -.29), (.46, .075), accent)
         screens.text("reading_begin_text", "SPACE   Begin", (0, -.29), .025, "white")
@@ -180,11 +180,13 @@ def run(win, logger, seed):
 
     # 사전검사와 사후검사에서 서로 다른 문장 Form 사용
     form = settings["form_by_phase"][logger.phase]
-    groups = list(materials[form].items())
+    groups = [(set_id, group.copy()) for set_id, group in materials[form].items()]
 
     # 동일한 seed에서는 Set 순서가 재현되도록 무작위 배치
-    if settings["randomized_set_order"]:
-        random.Random(f"{seed}:{form}").shuffle(groups)
+    rng = random.Random(f"reading:{seed}:{form}")
+    rng.shuffle(groups)
+    for _, group in groups:
+        rng.shuffle(group)
 
     screens.wait(kb, draw_screen, screens, "ready")
 
@@ -195,7 +197,7 @@ def run(win, logger, seed):
             progress = f"Set {set_index} / {len(groups)}"
 
             for item_index, row in enumerate(group, 1):
-                trial_info = dict(stage="test", attempt=1, form=form,
+                trial_info = dict(stage="test", attempt=1, form=form, random_seed=seed,
                                   set_id=set_id, item_id=row["item_id"], sentence=row["sentence"])
 
                 # 문장을 제시하기 전에 해당 문항의 정보를 저장
@@ -244,7 +246,7 @@ def run(win, logger, seed):
 
             # 실제 마지막 단어들과 참가자의 회상 결과를 비교하여 저장
             logger.write(
-                "reading_recall", stage="test", attempt=1,
+                "reading_recall", stage="test", attempt=1, random_seed=seed,
                 form=form, set_id=set_id, expected=words, response=recalled, rt=rt,
                 **score_recall(words, recalled),
             )

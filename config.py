@@ -63,21 +63,23 @@ NBACK_UI = dict(
     flow_accent="#487763",
 )
 DIGIT_SPAN = dict(
-    lengths=list(range(3, 10)),
+    lengths=list(range(3, 9)),
     trials_per_length=2,
     digit_pool=list("123456789"),
     adjacent_repetitions=False,
     digit_interval_s=1.0,
-    stop_failed_sets=2,
     audio_subdir="digits",
 )
 READING_SPAN = dict(
     lengths=[2, 3, 4, 5],
     sets_per_size=3,
-    randomized_set_order=True,
     sentence_timeout_s=5.0,
     form_by_phase={"pretest": "A", "posttest": "B"},
     sentence_file="stimuli/reading_sentences.csv",
     true_key="y",
     false_key="n",
 )
+
+RAPM = dict(time_limit_s=600.0, item_file="stimuli/rapm_items.csv", choices=8)
+
+BOMAT = dict(time_limit_s=600.0, item_file="stimuli/bomat_items.csv", choices=6)

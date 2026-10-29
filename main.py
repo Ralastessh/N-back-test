@@ -1,7 +1,6 @@
 import re
 import importlib
 import secrets
-import hashlib
 from config import DATA_DIR, DISPLAY, NBACK_UI, PARTICIPANT_EMAIL_DOMAIN
 from utils.data_logger import DataLogger
 from utils.native_window import enable_native_fullscreen
@@ -21,14 +20,16 @@ def normalize_hanyang_email(value):
     return email
 
 SPAN_TASKS = ("digit_span", "reading_span")
-TASK_LABELS = {"dual_nback": "Dual N-back", "digit_span": "Digit Span", "reading_span": "Reading Span"}
+ASSESSMENTS = SPAN_TASKS + ("rapm", "bomat")
+TASK_LABELS = {"dual_nback": "Dual N-back", "digit_span": "Digit Span", "reading_span": "Reading Span",
+               "rapm": "RAPM examples", "bomat": "BOMAT examples"}
 
 # Pre/Posttest으로 진행
-def next_step(task, phase, selected_span):
-    if phase == "pretest" and task in SPAN_TASKS:
+def next_step(task, phase, selected_test):
+    if phase == "pretest" and task in ASSESSMENTS:
         return "dual_nback", "training"
     if task == "dual_nback" and phase == "training":
-        return selected_span, "posttest"
+        return selected_test, "posttest"
     return None
 
 def _choice(win, title, choices):
@@ -60,20 +61,35 @@ def _choice(win, title, choices):
 # 'Pretest -> N-back test -> Posttest' 각 단계 이동 제안
 def ask_continue(win, task, phase, next_task, next_phase):
     # 미리 정해진 next task가 없으면 span 선택
-    destination = TASK_LABELS[next_task] if next_task else "your chosen Span task"
+    destination = TASK_LABELS[next_task] if next_task else "your chosen test"
     title = (f"{TASK_LABELS[task]} {phase.title()} complete.\n"
              f"Continue to {destination} {next_phase.title()}?")
     return _choice(win, title, {"space": "SPACE  Continue", "n": "N  Finish"}) == "space"
 
 def choose_posttest_task(win):
-    key = _choice(win, "Choose the Posttest task.", {"d": "D  Digit Span", "r": "R  Reading Span", "n": "N  Finish"})
-    return {"d": "digit_span", "r": "reading_span"}.get(key)
+    while True:
+        options = {"d": "digit_span", "r": "reading_span", "a": "rapm", "b": "bomat"}
+        labels = {key: f"{key.upper()}  {TASK_LABELS[test]}" for key, test in options.items()}
+        key = _choice(win, "Choose the Posttest task.", dict(labels, n="N  Finish"))
+        task = options.get(key)
+        message = task_phase_error(task, "posttest")
+        if message is None:
+            return task
+        warning = gui.Dlg(title="Check test materials")
+        warning.addText(message)
+        warning.show()
 
 def task_phase_error(task, phase):
     if task == "dual_nback" and phase != "training":
         return "Dual N-back requires Training. Please choose again."
-    if task in SPAN_TASKS and phase not in ("pretest", "posttest"):
-        return "Digit Span and Reading Span require Pretest or Posttest. Please choose again."
+    if task in ASSESSMENTS and phase not in ("pretest", "posttest"):
+        return "Assessment tasks require Pretest or Posttest. Please choose again."
+    if task in ("rapm", "bomat"):
+        from tasks.matrix_reasoning import load_items
+        try:
+            load_items(task)
+        except (OSError, ValueError, KeyError) as error:
+            return str(error)
     return None
 
 def main(default_task=None):
@@ -93,7 +109,7 @@ def main(default_task=None):
             message, title = str(error), "Check university email"
         else:
             message = task_phase_error(info["task"], info["phase"])
-            title = "Check task and phase"
+            title = "Check task, phase and materials"
         if message is None:
             break
         warning = gui.Dlg(title=title)
@@ -101,25 +117,24 @@ def main(default_task=None):
         warning.show()
     # 피실험자가 선택한 task, phase, span
     task, phase = info["task"], info["phase"]
-    selected_span = task if task in SPAN_TASKS else None
-    participant_seed = int.from_bytes(hashlib.sha256(email.encode()).digest()[:8], "big")
+    selected_test = task if task in ASSESSMENTS else None
     win = None
     try:
         win = visual.Window(
             size=DISPLAY["size"],
             fullscr=DISPLAY["fullscr"],
-            units=DISPLAY["units"], color="#FFFFFF" if task in SPAN_TASKS else DISPLAY["color"], useRetina=DISPLAY["useRetina"],
+            units=DISPLAY["units"], color="#FFFFFF" if task in ASSESSMENTS else DISPLAY["color"], useRetina=DISPLAY["useRetina"],
             allowGUI=True,
             infoMsg="Waiting...",
         )
         enable_native_fullscreen(win)
         while True:
-            seed = secrets.randbits(32) if task == "dual_nback" else participant_seed
+            seed = secrets.randbits(32)
             logger = DataLogger(DATA_DIR, email, task, phase)
             try:
-                win.color = {"dual_nback": NBACK_UI["background"], "digit_span": "#FFFFFF", "reading_span": "#FFFFFF"}[task]
+                win.color = NBACK_UI["background"] if task == "dual_nback" else "#FFFFFF"
                 # 선택한 task에 맞는 파이썬 파일 불러오기
-                module = importlib.import_module("tasks." + task)
+                module = importlib.import_module("tasks." + ("matrix_reasoning" if task in ("rapm", "bomat") else task))
                 module.run(win, logger, seed)
                 logger.write("session_end", status="completed")
             except KeyboardInterrupt:
@@ -131,7 +146,14 @@ def main(default_task=None):
             finally:
                 logger.close()
                 print(f"Data saved: {logger.path}")
-            following = next_step(task, phase, selected_span)
+            following = next_step(task, phase, selected_test)
+            if following and following[0] in ("rapm", "bomat"):
+                message = task_phase_error(*following)
+                if message:
+                    warning = gui.Dlg(title="Check Gf materials")
+                    warning.addText(message)
+                    warning.show()
+                    break
             if following is None or not ask_continue(win, task, phase, *following):
                 break
             task, phase = following
@@ -139,8 +161,8 @@ def main(default_task=None):
                 task = choose_posttest_task(win)
                 if task is None:
                     break
-            if task in SPAN_TASKS:
-                selected_span = task
+            if task in ASSESSMENTS:
+                selected_test = task
     finally:
         if win is not None:
             win._resize_draw = None
